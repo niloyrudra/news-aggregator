@@ -16,6 +16,12 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Path alias — see agent-skills/01-project-architecture.md.
+       `baseUrl` is omitted (deprecated in TS 6); `paths` resolves relative to this tsconfig. */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Linting */
     "noUnusedLocals": true,
     "noUnusedParameters": true,
