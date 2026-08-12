@@ -1,0 +1,84 @@
+/**
+ * URL-backed state for search filters — see agent-skills/03 § 1.
+ *
+ * We don't depend on react-router-dom (the project has no router). This is a
+ * thin wrapper over `window.location.search` + `history.pushState` that honors
+ * the architectural rule that filters live in the URL — shareable,
+ * bookmarkable, refresh-surviving — without bringing in a router just for
+ * one hook. If react-router is added later, only `useSearchFilters.ts` needs
+ * to swap its import.
+ *
+ * Array values are serialized as repeated keys (`?sources=a&sources=b`),
+ * which is the standard URL convention and survives a round-trip through
+ * `URLSearchParams` losslessly.
+ */
+
+export interface UrlSearchFilters {
+  keyword: string | undefined;
+  dateFrom: string | undefined;
+  dateTo: string | undefined;
+  category: string | undefined;
+  sources: string[] | undefined;
+  authors: string[] | undefined;
+}
+
+export type UrlSearchFiltersPatch = {
+  [K in keyof UrlSearchFilters]?: UrlSearchFilters[K] | null;
+};
+
+const PARAM_KEYS: (keyof UrlSearchFilters)[] = [
+  'keyword',
+  'dateFrom',
+  'dateTo',
+  'category',
+  'sources',
+  'authors',
+];
+
+/** Read the current filters from `window.location.search`. */
+export function getSearchFiltersFromUrl(): UrlSearchFilters {
+  const params = new URLSearchParams(window.location.search);
+  const result: UrlSearchFilters = {
+    keyword: undefined,
+    dateFrom: undefined,
+    dateTo: undefined,
+    category: undefined,
+    sources: undefined,
+    authors: undefined,
+  };
+  for (const key of PARAM_KEYS) {
+    if (key === 'sources' || key === 'authors') {
+      const values = params.getAll(key);
+      result[key] = values.length > 0 ? values : undefined;
+    } else {
+      const value = params.get(key);
+      result[key] = value ? value : undefined;
+    }
+  }
+  return result;
+}
+
+/**
+ * Merge `patch` into the current URL search params and `pushState` the result.
+ * Passing `null` for a key removes it. Other keys are preserved unchanged.
+ */
+export function writeSearchFiltersToUrl(patch: UrlSearchFiltersPatch): void {
+  const params = new URLSearchParams(window.location.search);
+  for (const key of PARAM_KEYS) {
+    if (!(key in patch)) continue;
+    const value = patch[key];
+    params.delete(key);
+    if (value === null || value === undefined) continue;
+    if (Array.isArray(value)) {
+      for (const v of value) params.append(key, v);
+    } else {
+      params.set(key, value);
+    }
+  }
+  const nextSearch = params.toString();
+  const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+  // pushState so the user can hit Back to undo a filter change.
+  window.history.pushState(null, '', nextUrl);
+  // Notify same-tab subscribers (pushState does not fire popstate).
+  window.dispatchEvent(new Event('app:urlchange'));
+}

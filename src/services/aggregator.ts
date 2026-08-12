@@ -56,7 +56,7 @@ export class AggregatorService {
     }
 
     const results = await Promise.allSettled(
-      providers.map((p) => p.search(params, signal)),
+      providers.map((provider) => provider.search(params, signal)),
     );
 
     const articles: Article[] = [];
