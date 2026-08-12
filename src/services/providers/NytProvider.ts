@@ -4,41 +4,56 @@ import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
 
 /**
- * New York Times Article Search API v2 adapter.
- *   https://developer.nytimes.com/docs/articlesearch-product/1/overview
+ * The New York Times Article Search API adapter — https://developer.nytimes.com/docs/articlesearch-product/1/overview
  *
- * Auth is via the `api-key` query parameter (like Guardian).
+ * Single endpoint (`/articlesearch.json`) handles keyword + date range + section/news-desk filter.
+ * Auth is via the `api-key` query parameter, not a header — same shape as Guardian.
  *
- * Date format gotcha: NYT expects `YYYYMMDD`, not the ISO `YYYY-MM-DD`
- * that `SearchParams` carries. We convert in `buildUrl`.
+ * NYT returns relative URLs in `multimedia[].url` (e.g. `/images/...`); we prepend
+ * the NYT image host (`https://www.nytimes.com/`) so the mapped `imageUrl` is
+ * ready to drop into an `<img src>`.
  *
- * Category gotcha: NYT uses Lucene-style `fq` instead of a simple field.
- * `section_name:("Politics")` is the standard filter for the section field.
+ * Reliability note: like Guardian, NYT's CORS support from the browser is not
+ * guaranteed. The AggregatorService's `Promise.allSettled` strategy is what
+ * makes a dead upstream tolerable, not anything in this file.
  */
 const NYT_BASE = 'https://api.nytimes.com/svc/search/v2';
+const NYT_IMAGE_HOST = 'https://www.nytimes.com';
 
 interface NytVendorMultimedia {
-  type: string;
-  subtype?: string;
   url: string;
+  /** 'default' — large image; 'thumb' — square thumbnail. */
+  type?: string;
+  subtype?: string;
 }
 
-interface NytVendorArticle {
+interface NytVendorHeadline {
+  main: string;
+  print_headline?: string;
+}
+
+interface NytVendorByline {
+  original?: string;
+}
+
+interface NytVendorDoc {
   _id: string;
-  web_url: string;
-  headline: { main?: string };
-  abstract?: string | null;
+  headline: NytVendorHeadline;
+  abstract?: string;
   lead_paragraph?: string;
-  byline: { original: string | null };
+  web_url: string;
   pub_date: string;
+  news_desk?: string;
   section_name?: string;
-  subsection_name?: string | null;
+  byline?: NytVendorByline;
   multimedia?: NytVendorMultimedia[];
 }
 
 interface NytVendorResponse {
   status: string;
-  response: { docs: NytVendorArticle[] };
+  response: {
+    docs: NytVendorDoc[];
+  };
 }
 
 export class NytProvider extends BaseHttpProvider implements NewsProvider {
@@ -48,6 +63,9 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
   private readonly apiKey: string | undefined;
 
   constructor(apiKey: string | undefined = import.meta.env.VITE_NYT_KEY) {
+    // Same tight budget as NewsAPI/Guardian. NYT's free tier is reliable when
+    // reachable; a slow call usually means CORS preflight is hanging, which
+    // this timeout surfaces as a clean error rather than blocking the UI.
     super({ timeoutMs: 8_000, maxAttempts: 2, initialBackoffMs: 250 });
     this.apiKey = apiKey;
   }
@@ -63,32 +81,37 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
   }
 
   /** Exposed for unit testing — see services/providers/NytProvider.test.ts. */
-  mapToArticle(vendor: NytVendorArticle): Article {
+  mapToArticle(vendor: NytVendorDoc): Article {
     return {
       id: `${this.id}:${vendor._id}`,
       title: vendor.headline?.main ?? '',
       summary: vendor.abstract ?? vendor.lead_paragraph ?? '',
       url: vendor.web_url,
-      imageUrl: this.firstImage(vendor.multimedia),
-      author: this.normalizeByline(vendor.byline?.original),
+      imageUrl: this.pickImage(vendor.multimedia),
+      author: this.parseByline(vendor.byline),
       source: this.displayName,
-      category: vendor.section_name || null,
+      category: vendor.news_desk || vendor.section_name || null,
       publishedAt: vendor.pub_date,
     };
   }
 
-  /** NYT's `byline.original` is usually "By Jane Doe" — strip the prefix once. */
-  protected normalizeByline(raw: string | null | undefined): string | null {
-    if (!raw) return null;
-    return raw.startsWith('By ') ? raw.slice(3) : raw;
+  /** NYT's multimedia array is unsorted; prefer `default`, fall back to `thumb`. */
+  private pickImage(multimedia: NytVendorMultimedia[] | undefined): string | null {
+    if (!multimedia || multimedia.length === 0) return null;
+    const preferred =
+      multimedia.find((m) => m.type === 'default') ??
+      multimedia.find((m) => m.type === 'thumb') ??
+      multimedia[0];
+    if (!preferred?.url) return null;
+    // NYT returns paths like `/images/...` — prepend the host so the URL is usable.
+    return `${NYT_IMAGE_HOST}${preferred.url}`;
   }
 
-  /** NYT returns image URLs as paths; prepend the canonical host. */
-  private firstImage(multimedia: NytVendorMultimedia[] | undefined): string | null {
-    if (!multimedia) return null;
-    const image = multimedia.find((m) => m.type === 'image' && m.url);
-    if (!image) return null;
-    return image.url.startsWith('http') ? image.url : `https://www.nytimes.com/${image.url}`;
+  /** `By Some Author` → `Some Author`. Returns null if no byline. */
+  private parseByline(byline: NytVendorByline | undefined): string | null {
+    const original = byline?.original?.trim();
+    if (!original) return null;
+    return original.replace(/^By\s+/i, '');
   }
 
   private buildUrl(params: SearchParams): { url: string; error?: string } {
@@ -98,30 +121,21 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
 
     const url = new URL(`${NYT_BASE}/articlesearch.json`);
     if (params.keyword) url.searchParams.set('q', params.keyword);
-    const from = toNytDate(params.dateFrom);
-    const to = toNytDate(params.dateTo);
-    if (from) url.searchParams.set('begin_date', from);
-    if (to) url.searchParams.set('end_date', to);
-    if (params.category) {
-      // Lucene-style filter query. Quotes around the value to keep multi-word
-      // categories intact (e.g. "Real Estate").
-      url.searchParams.set('fq', `section_name:("${params.category}")`);
-    }
+    if (params.dateFrom) url.searchParams.set('begin_date', toNytDate(params.dateFrom));
+    if (params.dateTo) url.searchParams.set('end_date', toNytDate(params.dateTo));
+    if (params.category) url.searchParams.set('fq', `news_desk:(${params.category})`);
 
-    url.searchParams.set('page', '0');
     url.searchParams.set('api-key', this.apiKey);
     return { url: url.toString() };
   }
 }
 
 /**
- * Convert ISO date (`YYYY-MM-DD` or full ISO 8601) to NYT's `YYYYMMDD` form.
- * Returns null for falsy/unparseable input — the caller treats null as "no
- * filter set" rather than throwing.
+ * NYT's date filter is `YYYYMMDD`, not ISO. `SearchParams` is ISO (`YYYY-MM-DD`)
+ * so we strip the dashes. If the input is malformed, we pass it through and let
+ * NYT's own validation surface the error — keeps the adapter's behavior simple
+ * and the boundary explicit.
  */
-function toNytDate(iso: string | undefined): string | null {
-  if (!iso) return null;
-  const digits = iso.replace(/-/g, '');
-  if (digits.length < 8) return null;
-  return digits.slice(0, 8);
+function toNytDate(iso: string): string {
+  return iso.replace(/-/g, '');
 }

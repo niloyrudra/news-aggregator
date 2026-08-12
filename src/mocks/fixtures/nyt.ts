@@ -1,132 +1,81 @@
 /**
- * Fixture shaped like the real NYT Article Search API v2 response.
- * Three results exercising: full byline, byline without "By ", missing
- * byline, present + missing abstract, present + missing image, multiple
- * section_name values.
+ * Fixture shaped like the real NYT Article Search API `/articlesearch.json`
+ * response. Three docs exercising: full article (byline + image + both date
+ * fields), missing byline (author null), missing multimedia (image null).
  *
  * Real response shape:
- *   https://developer.nytimes.com/docs/articlesearch-product/1/overview
+ *   https://developer.nytimes.com/docs/articlesearch-product/1/routes/articlesearch.json/get
+ *
+ * Note: `multimedia[].url` is intentionally a path-only string (`/images/...`)
+ * — the adapter prepends the NYT image host. This mirrors the real wire format.
  */
-export const nytArticleSearchResponse = {
+export const nytArticlesResponse = {
   status: 'OK',
   response: {
     docs: [
       {
-        _id: 'nyt://article/abc-123-def-456',
-        web_url: 'https://www.nytimes.com/2026/08/10/world/economy/global-supply-chain.html',
-        snippet:
-          'A worldwide slowdown in shipping has begun to ripple through retail inventories.',
-        lead_paragraph:
-          'Port operators from Long Beach to Rotterdam are reporting record backlogs.',
+        _id: 'nyt://article/2026-08-11T12:30:00Z/climate-summit-2026',
+        headline: {
+          main: 'Climate summit closes with surprise methane pledge',
+          print_headline: 'Surprise Methane Pledge Caps Climate Summit',
+        },
         abstract:
-          'A worldwide slowdown in shipping has begun to ripple through retail inventories, raising the prospect of shortages ahead of the holiday season.',
-        print_page: 'B1',
-        blog: {},
-        source: 'The New York Times',
+          'Forty nations signed a nonbinding agreement to slash methane emissions faster than planned.',
+        lead_paragraph:
+          'After three days of negotiations, delegates from forty nations signed a surprise nonbinding agreement…',
+        web_url:
+          'https://www.nytimes.com/2026/08/11/world/climate/climate-summit-2026.html',
+        pub_date: '2026-08-11T12:30:00Z',
+        news_desk: 'Climate',
+        section_name: 'World',
+        byline: {
+          original: 'By Lisa Friedman and Max Bearak',
+        },
         multimedia: [
           {
-            rank: 1,
-            subtype: 'xlarge',
+            url: '/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
             type: 'image',
-            url: 'images/2026/08/10/world/10supply-1/10supply-1-articleLarge.jpg',
-          },
-          {
-            rank: 2,
-            subtype: 'wide',
-            type: 'image',
-            url: 'images/2026/08/10/world/10supply-1/10supply-1-thumbWide.jpg',
+            subtype: 'default',
           },
         ],
+      },
+      {
+        _id: 'nyt://article/2026-08-12T08:00:00Z/fed-rate-decision',
         headline: {
-          main: 'Global Supply Chain Slowdown Reaches Retail Shelves',
-          kicker: 'Trade',
-          content_kicker: null,
-          print_headline: 'A Supply Slowdown Reaches the Shelves',
-          name: null,
-          seo: null,
-          sub: null,
+          main: 'Fed signals a pause as inflation cools',
         },
-        keywords: [
-          { name: 'subject', value: 'Supply Chain' },
-          { name: 'subject', value: 'Global Trade' },
-          { name: 'glocations', value: 'Rotterdam' },
-        ],
-        pub_date: '2026-08-10T14:00:09+0000',
-        document_type: 'article',
+        abstract:
+          'Policymakers held rates steady and hinted at the end of the tightening cycle.',
+        web_url:
+          'https://www.nytimes.com/2026/08/12/business/fed-rate-decision.html',
+        pub_date: '2026-08-12T08:00:00Z',
         news_desk: 'Business',
         section_name: 'Business',
-        subsection_name: 'Economy',
-        byline: {
-          original: 'By Ana Swanson and Jordyn Holman',
-          person: [
-            { firstname: 'Ana', middlename: null, lastname: 'Swanson' },
-            { firstname: 'Jordyn', middlename: null, lastname: 'Holman' },
-          ],
-          organization: null,
-        },
-        type_of_material: 'News',
-        word_count: 1180,
-      },
-      {
-        _id: 'nyt://article/ghi-789-jkl-012',
-        web_url: 'https://www.nytimes.com/2026/08/11/opinion/ai-regulation-eu.html',
-        snippet: 'Brussels is preparing a new wave of regulation targeting foundation models.',
-        lead_paragraph: 'The draft directive could reshape how the largest systems are deployed.',
-        abstract: null, // opinion pieces often lack an abstract
-        multimedia: [], // no images
-        headline: {
-          main: 'Europe Is Quietly Winning the AI Regulation Race',
-          kicker: 'Opinion',
-          print_headline: 'Europe Quietly Wins the AI Race',
-        },
-        keywords: [
-          { name: 'subject', value: 'Artificial Intelligence' },
-          { name: 'subject', value: 'Regulation' },
-        ],
-        pub_date: '2026-08-11T09:30:00+0000',
-        document_type: 'article',
-        news_desk: 'OpEd',
-        section_name: 'Opinion',
-        subsection_name: null,
-        // Editorial page opinion piece — no byline at all.
-        byline: { original: null, person: [], organization: null },
-        type_of_material: 'Op-Ed',
-        word_count: 820,
-      },
-      {
-        _id: 'nyt://article/mno-345-pqr-678',
-        web_url: 'https://www.nytimes.com/2026/08/11/sports/baseball/yankees-trade-deadline.html',
-        snippet: 'With hours to go before the deadline, the Yankees made a bold move.',
-        lead_paragraph: 'The team parted with two prospects to acquire a frontline starter.',
-        abstract: 'With hours to go before the deadline, the Yankees made a bold move.',
+        // No byline — anonymous wire story.
         multimedia: [
           {
-            rank: 1,
-            subtype: 'xlarge',
+            url: '/images/2026/08/12/fed/thumb-789.jpg',
             type: 'image',
-            url: 'images/2026/08/11/sports/11yankees/11yankees-articleLarge.jpg',
+            subtype: 'thumb',
           },
         ],
+      },
+      {
+        _id: 'nyt://article/2026-08-12T15:45:00Z/op-ed-ai-policy',
         headline: {
-          main: 'Yankees Swing for a Frontline Starter at the Deadline',
-          kicker: 'MLB',
-          print_headline: 'Yankees Swing Big at the Deadline',
+          main: 'Opinion: AI policy needs less theater, more substance',
         },
-        keywords: [],
-        pub_date: '2026-08-11T20:15:00+0000',
-        document_type: 'article',
-        news_desk: 'Sports',
-        section_name: 'Sports',
-        subsection_name: 'Baseball',
+        abstract:
+          'A short abstract is enough — the article did not include a lead_paragraph either.',
+        web_url:
+          'https://www.nytimes.com/2026/08/12/opinion/ai-policy.html',
+        pub_date: '2026-08-12T15:45:00Z',
+        news_desk: 'Opinion',
+        section_name: 'Opinion',
         byline: {
-          // Already-trimmed byline — some APIs/data feeds return the name
-          // without a "By " prefix. Provider should not double-strip.
-          original: 'James Wagner',
-          person: [{ firstname: 'James', middlename: null, lastname: 'Wagner' }],
-          organization: null,
+          original: 'By Ezra Klein',
         },
-        type_of_material: 'News',
-        word_count: 640,
+        // No multimedia at all — imageUrl must come out null.
       },
     ],
   },

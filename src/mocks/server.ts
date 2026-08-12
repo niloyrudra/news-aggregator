@@ -1,6 +1,4 @@
 import { setupServer } from 'msw/node';
-import { newsApiHandlers } from './handlers/newsapi';
-import { guardianHandlers } from './handlers/guardian';
-import { nytHandlers } from './handlers/nyt';
+import { handlers } from './handlers';
 
-export const server = setupServer(...newsApiHandlers, ...guardianHandlers, ...nytHandlers);
+export const server = setupServer(...handlers);

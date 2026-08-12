@@ -1,139 +1,137 @@
 /**
- * Tests for NytProvider — mirrors the GuardianProvider/NewsApiProvider test layout.
+ * Tests for NytProvider — mirrors the GuardianProvider test layout.
  *
  * Two layers:
  *   1. Pure mapping: `mapToArticle()` is exported and tested directly.
  *   2. End-to-end via `search()` with msw intercepting the live fetch.
  *
- * NYT-specific mapping rules worth pinning down:
- *   - `byline.original` is prefixed with "By " — strip it once, but never
- *     double-strip a name that doesn't have the prefix
- *   - `multimedia[].url` is a *relative* path; the canonical image URL is
- *     prefixed with `https://www.nytimes.com/`
- *   - `summary` prefers `abstract`, falls back to `lead_paragraph`, then ''
- *   - Date params use `YYYYMMDD`, not ISO; `SearchParams` gives ISO and the
- *     provider must convert
- *   - Category is filtered via Lucene-style `fq`, not a simple field
- *   - `id` is namespaced with the provider id (cross-source uniqueness)
+ * The NYT-specific mapping rules worth pinning down:
+ *   - `id` is namespaced with the provider id so it can't collide with
+ *     NewsAPI/Guardian ids when results are merged in the aggregator
+ *   - `author` is parsed from `byline.original` with the leading "By " stripped
+ *   - `category` prefers `news_desk` (granular desk) over `section_name`
+ *   - `summary` prefers `abstract` (short) over `lead_paragraph` (long),
+ *     defaulting to '' if neither is present
+ *   - `imageUrl` picks `multimedia[].type === 'default'` first, then `'thumb'`,
+ *     and prepends the NYT image host so the path-only URL becomes usable
+ *   - Date filters are translated from ISO `YYYY-MM-DD` to NYT's `YYYYMMDD`
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { server } from '@/mocks/server';
-import { nytArticleSearchResponse } from '@/mocks/fixtures/nyt';
+import { nytArticlesResponse } from '@/mocks/fixtures/nyt';
 import { NytProvider } from './NytProvider';
 import type { Article } from '@/contracts/Article';
 
 const EXPECTED: Article[] = [
   {
-    id: 'nyt:nyt://article/abc-123-def-456',
-    title: 'Global Supply Chain Slowdown Reaches Retail Shelves',
+    id: 'nyt:nyt://article/2026-08-11T12:30:00Z/climate-summit-2026',
+    title: 'Climate summit closes with surprise methane pledge',
     summary:
-      'A worldwide slowdown in shipping has begun to ripple through retail inventories, raising the prospect of shortages ahead of the holiday season.',
-    url: 'https://www.nytimes.com/2026/08/10/world/economy/global-supply-chain.html',
-    imageUrl: 'https://www.nytimes.com/images/2026/08/10/world/10supply-1/10supply-1-articleLarge.jpg',
-    author: 'Ana Swanson and Jordyn Holman',
+      'Forty nations signed a nonbinding agreement to slash methane emissions faster than planned.',
+    url: 'https://www.nytimes.com/2026/08/11/world/climate/climate-summit-2026.html',
+    imageUrl: 'https://www.nytimes.com/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
+    author: 'Lisa Friedman and Max Bearak',
+    source: 'The New York Times',
+    category: 'Climate',
+    publishedAt: '2026-08-11T12:30:00Z',
+  },
+  {
+    id: 'nyt:nyt://article/2026-08-12T08:00:00Z/fed-rate-decision',
+    title: 'Fed signals a pause as inflation cools',
+    summary:
+      'Policymakers held rates steady and hinted at the end of the tightening cycle.',
+    url: 'https://www.nytimes.com/2026/08/12/business/fed-rate-decision.html',
+    imageUrl: 'https://www.nytimes.com/images/2026/08/12/fed/thumb-789.jpg',
+    author: null, // no byline on this fixture
     source: 'The New York Times',
     category: 'Business',
-    publishedAt: '2026-08-10T14:00:09+0000',
+    publishedAt: '2026-08-12T08:00:00Z',
   },
   {
-    id: 'nyt:nyt://article/ghi-789-jkl-012',
-    title: 'Europe Is Quietly Winning the AI Regulation Race',
-    summary: 'The draft directive could reshape how the largest systems are deployed.',
-    url: 'https://www.nytimes.com/2026/08/11/opinion/ai-regulation-eu.html',
-    imageUrl: null,
-    author: null, // opinion piece — no byline
+    id: 'nyt:nyt://article/2026-08-12T15:45:00Z/op-ed-ai-policy',
+    title: 'Opinion: AI policy needs less theater, more substance',
+    summary:
+      'A short abstract is enough — the article did not include a lead_paragraph either.',
+    url: 'https://www.nytimes.com/2026/08/12/opinion/ai-policy.html',
+    imageUrl: null, // multimedia empty on this fixture
+    author: 'Ezra Klein',
     source: 'The New York Times',
     category: 'Opinion',
-    publishedAt: '2026-08-11T09:30:00+0000',
-  },
-  {
-    id: 'nyt:nyt://article/mno-345-pqr-678',
-    title: 'Yankees Swing for a Frontline Starter at the Deadline',
-    summary: 'With hours to go before the deadline, the Yankees made a bold move.',
-    url: 'https://www.nytimes.com/2026/08/11/sports/baseball/yankees-trade-deadline.html',
-    imageUrl: 'https://www.nytimes.com/images/2026/08/11/sports/11yankees/11yankees-articleLarge.jpg',
-    // Byline lacked "By " prefix in the fixture — must not double-strip.
-    author: 'James Wagner',
-    source: 'The New York Times',
-    category: 'Sports',
-    publishedAt: '2026-08-11T20:15:00+0000',
+    publishedAt: '2026-08-12T15:45:00Z',
   },
 ];
 
 describe('NytProvider — mapToArticle', () => {
-  it('produces the exact Article shape for a fully populated vendor article', () => {
+  it('produces the exact Article shape for a fully populated vendor doc', () => {
     const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
+    const [vendor] = nytArticlesResponse.response.docs;
     expect(provider.mapToArticle(vendor)).toEqual(EXPECTED[0]);
   });
 
-  it('strips the "By " prefix from byline.original exactly once', () => {
+  it('prefers `news_desk` over `section_name` for category', () => {
     const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
-    expect(provider.mapToArticle(vendor).author).toBe('Ana Swanson and Jordyn Holman');
+    const [vendor] = nytArticlesResponse.response.docs;
+    expect(provider.mapToArticle(vendor).category).toBe('Climate');
   });
 
-  it('does not double-strip a byline that already lacks the "By " prefix', () => {
+  it('strips the leading "By " from byline.original', () => {
     const provider = new NytProvider('test-key');
-    const [, , vendor] = nytArticleSearchResponse.response.docs;
-    expect(provider.mapToArticle(vendor).author).toBe('James Wagner');
+    const [vendor] = nytArticlesResponse.response.docs;
+    expect(provider.mapToArticle(vendor).author).toBe('Lisa Friedman and Max Bearak');
   });
 
-  it('returns null author for an opinion piece with no byline', () => {
+  it('returns null author when there is no byline', () => {
     const provider = new NytProvider('test-key');
-    const [, vendor] = nytArticleSearchResponse.response.docs;
+    const [, vendor] = nytArticlesResponse.response.docs;
     expect(provider.mapToArticle(vendor).author).toBeNull();
   });
 
-  it('prefers `abstract` over `lead_paragraph` for `summary`, falling back to the latter', () => {
+  it('returns null imageUrl when `multimedia` is missing or empty', () => {
     const provider = new NytProvider('test-key');
-    const abstractOnly = provider.mapToArticle(nytArticleSearchResponse.response.docs[0]);
-    expect(abstractOnly.summary.startsWith('A worldwide slowdown')).toBe(true);
+    const [, , vendor] = nytArticlesResponse.response.docs;
+    expect(provider.mapToArticle(vendor).imageUrl).toBeNull();
+  });
 
-    const abstractCleared = {
-      ...nytArticleSearchResponse.response.docs[0],
-      abstract: null,
+  it('prepends the NYT image host to multimedia[].url', () => {
+    const provider = new NytProvider('test-key');
+    const [vendor] = nytArticlesResponse.response.docs;
+    expect(provider.mapToArticle(vendor).imageUrl).toMatch(/^https:\/\/www\.nytimes\.com\//);
+  });
+
+  it('falls back to `thumb` when no `default` image is present', () => {
+    const provider = new NytProvider('test-key');
+    const doc = {
+      ...nytArticlesResponse.response.docs[0],
+      multimedia: [
+        { url: '/images/x.jpg', type: 'thumb' },
+        { url: '/images/y.jpg', type: 'image' },
+      ],
     };
-    expect(provider.mapToArticle(abstractCleared).summary).toBe(
-      'Port operators from Long Beach to Rotterdam are reporting record backlogs.',
+    expect(provider.mapToArticle(doc).imageUrl).toBe(
+      'https://www.nytimes.com/images/x.jpg',
     );
   });
 
-  it('picks the first image from `multimedia` and prefixes the relative URL with the host', () => {
+  it('prefers `abstract` over `lead_paragraph` for summary', () => {
     const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
-    expect(provider.mapToArticle(vendor).imageUrl).toBe(
-      'https://www.nytimes.com/images/2026/08/10/world/10supply-1/10supply-1-articleLarge.jpg',
+    const [vendor] = nytArticlesResponse.response.docs;
+    expect(provider.mapToArticle(vendor).summary).toBe(
+      'Forty nations signed a nonbinding agreement to slash methane emissions faster than planned.',
     );
-  });
-
-  it('returns null image when `multimedia` is empty or absent', () => {
-    const provider = new NytProvider('test-key');
-    const noImages = provider.mapToArticle(nytArticleSearchResponse.response.docs[1]);
-    expect(noImages.imageUrl).toBeNull();
-
-    const absent = provider.mapToArticle({ ...nytArticleSearchResponse.response.docs[1], multimedia: undefined });
-    expect(absent.imageUrl).toBeNull();
   });
 
   it('namespaces the article id with the provider id for cross-source uniqueness', () => {
     const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
+    const [vendor] = nytArticlesResponse.response.docs;
     expect(provider.mapToArticle(vendor).id.startsWith('nyt:')).toBe(true);
   });
 
   it('uses the provider displayName as the source rather than a vendor-specific label', () => {
     const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
+    const [vendor] = nytArticlesResponse.response.docs;
     expect(provider.mapToArticle(vendor).source).toBe('The New York Times');
-  });
-
-  it('uses `section_name` as the category', () => {
-    const provider = new NytProvider('test-key');
-    const [vendor] = nytArticleSearchResponse.response.docs;
-    expect(provider.mapToArticle(vendor).category).toBe('Business');
   });
 });
 
@@ -143,25 +141,26 @@ describe('NytProvider — search()', () => {
     server.use(
       http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', ({ request }) => {
         seen.url = request.url;
-        return HttpResponse.json(nytArticleSearchResponse);
+        return HttpResponse.json(nytArticlesResponse);
       }),
     );
 
     const provider = new NytProvider('test-key');
-    const articles = await provider.search({ keyword: 'supply chain' });
+    const articles = await provider.search({ keyword: 'climate' });
 
     expect(articles).toEqual(EXPECTED);
     expect(seen.url).toBeDefined();
+    // Auth is via query param, not header.
     expect(seen.url).toContain('api-key=test-key');
-    expect(seen.url).toContain('q=supply+chain');
+    expect(seen.url).toContain('q=climate');
   });
 
-  it('converts ISO date params to NYT YYYYMMDD format', async () => {
+  it('translates ISO date range to NYT YYYYMMDD and forwards as begin_date/end_date', async () => {
     let seenUrl: string | undefined;
     server.use(
       http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', ({ request }) => {
         seenUrl = request.url;
-        return HttpResponse.json(nytArticleSearchResponse);
+        return HttpResponse.json(nytArticlesResponse);
       }),
     );
 
@@ -175,19 +174,19 @@ describe('NytProvider — search()', () => {
     expect(seenUrl).toContain('end_date=20260812');
   });
 
-  it('sends the category as a Lucene-style `fq` filter', async () => {
+  it('forwards category as an fq=news_desk:(...) filter', async () => {
     let seenUrl: string | undefined;
     server.use(
       http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', ({ request }) => {
         seenUrl = request.url;
-        return HttpResponse.json(nytArticleSearchResponse);
+        return HttpResponse.json(nytArticlesResponse);
       }),
     );
 
     const provider = new NytProvider('test-key');
-    await provider.search({ category: 'Politics' });
+    await provider.search({ category: 'Business' });
 
-    expect(seenUrl).toContain('fq=section_name%3A%28%22Politics%22%29');
+    expect(seenUrl).toContain('fq=news_desk%3A%28Business%29');
   });
 
   it('rejects with a typed error when the API key is missing — no network call', async () => {
@@ -200,7 +199,7 @@ describe('NytProvider — search()', () => {
 
   it('surfaces 4xx as HttpError without retrying — protects the daily quota', async () => {
     const spy = vi.fn(() =>
-      HttpResponse.json({ faults: [{ faultstring: 'Invalid API Key' }] }, { status: 401 }),
+      HttpResponse.json({ fault: { faultstring: 'Invalid api-key' } }, { status: 401 }),
     );
     server.use(http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', spy));
 
