@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 import { z } from 'zod';
 
 /**
@@ -87,37 +87,48 @@ function parsePersisted(raw: unknown): Pick<
   };
 }
 
-export const usePreferencesStore = create<PreferencesState>()(
-  persist(
-    (set) => ({
-      ...DEFAULTS,
-      setPreferences: (patch) =>
-        set((prev) => ({
-          preferredSources: patch.preferredSources ?? prev.preferredSources,
-          preferredCategories: patch.preferredCategories ?? prev.preferredCategories,
-          preferredAuthors: patch.preferredAuthors ?? prev.preferredAuthors,
-        })),
-      setPreferredSources: (sources) => set({ preferredSources: sources }),
-      setPreferredCategories: (categories) => set({ preferredCategories: categories }),
-      setPreferredAuthors: (authors) => set({ preferredAuthors: authors }),
-      resetPreferences: () => set({ ...DEFAULTS }),
-    }),
-    {
-      name: STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
-      // Persist only the user's selections — not the action functions.
-      partialize: (state) => ({
-        preferredSources: state.preferredSources,
-        preferredCategories: state.preferredCategories,
-        preferredAuthors: state.preferredAuthors,
+/**
+ * Factory function to create a preferences store with custom storage.
+ * Used by tests to inject a mock storage.
+ */
+export function createPreferencesStore(storage?: StateStorage) {
+  return create<PreferencesState>()(
+    persist(
+      (set) => ({
+        ...DEFAULTS,
+        setPreferences: (patch) =>
+          set((prev) => ({
+            preferredSources: patch.preferredSources ?? prev.preferredSources,
+            preferredCategories: patch.preferredCategories ?? prev.preferredCategories,
+            preferredAuthors: patch.preferredAuthors ?? prev.preferredAuthors,
+          })),
+        setPreferredSources: (sources) => set({ preferredSources: sources }),
+        setPreferredCategories: (categories) => set({ preferredCategories: categories }),
+        setPreferredAuthors: (authors) => set({ preferredAuthors: authors }),
+        resetPreferences: () => set({ ...DEFAULTS }),
       }),
-      // On hydrate, validate; if it doesn't match, fall back to defaults.
-      merge: (persisted, current) => ({
-        ...current,
-        ...parsePersisted(persisted),
-      }),
-      // `version` documents the persisted shape; bump it when changing the schema.
-      version: 1,
-    },
-  ),
-);
+      {
+        name: STORAGE_KEY,
+        storage: storage
+          ? createJSONStorage(() => storage)
+          : createJSONStorage(() => localStorage),
+        // Persist only the user's selections — not the action functions.
+        partialize: (state) => ({
+          preferredSources: state.preferredSources,
+          preferredCategories: state.preferredCategories,
+          preferredAuthors: state.preferredAuthors,
+        }),
+        // On hydrate, validate; if it doesn't match, fall back to defaults.
+        merge: (persisted: unknown, current) => ({
+          ...current,
+          ...parsePersisted(persisted),
+        }),
+        // `version` documents the persisted shape; bump it when changing the schema.
+        version: 1,
+      },
+    ),
+  );
+}
+
+/** Default singleton store using real localStorage. */
+export const usePreferencesStore = createPreferencesStore();

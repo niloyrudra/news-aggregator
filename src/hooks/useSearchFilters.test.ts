@@ -8,7 +8,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, beforeEach } from 'vitest';
 import { useSearchFilters } from './useSearchFilters';
 
-const URL_BASE = 'http://localhost/';
+const URL_BASE = 'http://localhost:3000/';
 
 /** Reset `window.location.search` between tests so each starts blank. */
 function resetUrl() {

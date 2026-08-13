@@ -58,6 +58,25 @@ export function getSearchFiltersFromUrl(): UrlSearchFilters {
   return result;
 }
 
+let cachedSearch: string | undefined;
+let cachedFilters: UrlSearchFilters | undefined;
+
+/**
+ * Like `getSearchFiltersFromUrl`, but returns a **stable reference** when the
+ * URL search string hasn't changed. `useSyncExternalStore` requires
+ * `getSnapshot` to return a cached value — a fresh object every call makes
+ * React think the store changed on every render and loop forever.
+ */
+export function getCachedSearchFiltersFromUrl(): UrlSearchFilters {
+  const search = window.location.search;
+  if (cachedSearch === search && cachedFilters) {
+    return cachedFilters;
+  }
+  cachedSearch = search;
+  cachedFilters = getSearchFiltersFromUrl();
+  return cachedFilters;
+}
+
 /**
  * Merge `patch` into the current URL search params and `pushState` the result.
  * Passing `null` for a key removes it. Other keys are preserved unchanged.

@@ -10,7 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { act } from 'react';
 import { renderHook } from '@testing-library/react';
-import { usePreferencesStore } from './store';
+import { createPreferencesStore } from './store';
 
 /** In-memory localStorage stand-in — mirrors the parts of Web Storage we use. */
 function memoryStorage(): Storage {
@@ -31,33 +31,21 @@ function memoryStorage(): Storage {
   };
 }
 
+let testStore: ReturnType<typeof createPreferencesStore>;
+
 beforeEach(() => {
   // Each test gets a fresh storage so cross-test leakage is impossible.
-  Object.defineProperty(window, 'localStorage', {
-    value: memoryStorage(),
-    writable: true,
-    configurable: true,
-  });
-  // Zustand `persist` survives between tests only if state is re-initialised
-  // — `createJSONStorage(() => localStorage)` is captured at first call,
-  // and the store's initial state is captured at module load. Reload its
-  // storage handle by re-setting localStorage BEFORE the test reads; the
-  // store's in-memory state remains separately influenced by `reset()`.
-  usePreferencesStore.setState({
-    preferredSources: [],
-    preferredCategories: [],
-    preferredAuthors: [],
-  });
-  usePreferencesStore.persist.clearStorage();
+  const storage = memoryStorage();
+  testStore = createPreferencesStore(storage);
 });
 
 afterEach(() => {
-  usePreferencesStore.persist.clearStorage();
+  testStore.persist.clearStorage();
 });
 
 describe('usePreferencesStore — defaults', () => {
   it('starts with all-empty preferences when nothing is persisted', () => {
-    const { result } = renderHook(() => usePreferencesStore());
+    const { result } = renderHook(() => testStore());
     expect(result.current.preferredSources).toEqual([]);
     expect(result.current.preferredCategories).toEqual([]);
     expect(result.current.preferredAuthors).toEqual([]);
@@ -66,7 +54,7 @@ describe('usePreferencesStore — defaults', () => {
 
 describe('usePreferencesStore — mutations', () => {
   it('updates all three fields through setPreferences in one call', () => {
-    const { result } = renderHook(() => usePreferencesStore());
+    const { result } = renderHook(() => testStore());
 
     act(() => {
       result.current.setPreferences({
@@ -82,7 +70,7 @@ describe('usePreferencesStore — mutations', () => {
   });
 
   it('setPreferences preserves fields you do not pass', () => {
-    const { result } = renderHook(() => usePreferencesStore());
+    const { result } = renderHook(() => testStore());
     act(() => {
       result.current.setPreferredSources(['newsapi']);
     });
@@ -97,7 +85,7 @@ describe('usePreferencesStore — mutations', () => {
   });
 
   it('resetPreferences returns every field to empty defaults', () => {
-    const { result } = renderHook(() => usePreferencesStore());
+    const { result } = renderHook(() => testStore());
     act(() => {
       result.current.setPreferences({
         preferredSources: ['newsapi'],
@@ -126,39 +114,37 @@ describe('usePreferencesStore — Zod validation on load', () => {
 
   it('falls back to defaults when stored data is the wrong shape', () => {
     // Plant garbage: a string where an array should be.
-    window.localStorage.setItem(
-      'innoscripta.preferences.v1',
-      JSON.stringify({
+    const corruptedStore = createPreferencesStore({
+      getItem: () => JSON.stringify({
         state: { preferredSources: 'not-an-array' },
         version: 1,
       }),
-    );
-
-    act(() => {
-      usePreferencesStore.persist.rehydrate();
+      setItem: () => {},
+      removeItem: () => {},
     });
 
-    const state = usePreferencesStore.getState();
-    expect(state.preferredSources).toEqual([]);
-    expect(state.preferredCategories).toEqual([]);
-    expect(state.preferredAuthors).toEqual([]);
+    const { result } = renderHook(() => corruptedStore());
+    expect(result.current.preferredSources).toEqual([]);
+    expect(result.current.preferredCategories).toEqual([]);
+    expect(result.current.preferredAuthors).toEqual([]);
   });
 
   it('falls back to defaults when JSON is malformed', () => {
-    window.localStorage.setItem('innoscripta.preferences.v1', '{not json');
-
-    act(() => {
-      usePreferencesStore.persist.rehydrate();
+    const corruptedStore = createPreferencesStore({
+      getItem: () => '{not json',
+      setItem: () => {},
+      removeItem: () => {},
     });
 
-    const state = usePreferencesStore.getState();
-    expect(state.preferredSources).toEqual([]);
+    const { result } = renderHook(() => corruptedStore());
+    expect(result.current.preferredSources).toEqual([]);
+    expect(result.current.preferredCategories).toEqual([]);
+    expect(result.current.preferredAuthors).toEqual([]);
   });
 
   it('restores valid stored values', () => {
-    window.localStorage.setItem(
-      'innoscripta.preferences.v1',
-      JSON.stringify({
+    const validStore = createPreferencesStore({
+      getItem: () => JSON.stringify({
         state: {
           preferredSources: ['guardian'],
           preferredCategories: ['Business', 'Tech'],
@@ -166,36 +152,29 @@ describe('usePreferencesStore — Zod validation on load', () => {
         },
         version: 1,
       }),
-    );
-
-    act(() => {
-      usePreferencesStore.persist.rehydrate();
+      setItem: () => {},
+      removeItem: () => {},
     });
 
-    const state = usePreferencesStore.getState();
-    expect(state.preferredSources).toEqual(['guardian']);
-    expect(state.preferredCategories).toEqual(['Business', 'Tech']);
-    expect(state.preferredAuthors).toEqual(['Carolyn Y. Johnson']);
+    const { result } = renderHook(() => validStore());
+    expect(result.current.preferredSources).toEqual(['guardian']);
+    expect(result.current.preferredCategories).toEqual(['Business', 'Tech']);
+    expect(result.current.preferredAuthors).toEqual(['Carolyn Y. Johnson']);
   });
 
   it('handles missing fields in stored payload without crashing', () => {
-    // Plant a payload with only one of the three fields set; the rest
-    // should fall back to defaults.
-    window.localStorage.setItem(
-      'innoscripta.preferences.v1',
-      JSON.stringify({
+    const partialStore = createPreferencesStore({
+      getItem: () => JSON.stringify({
         state: { preferredAuthors: ['Alice'] },
         version: 1,
       }),
-    );
-
-    act(() => {
-      usePreferencesStore.persist.rehydrate();
+      setItem: () => {},
+      removeItem: () => {},
     });
 
-    const state = usePreferencesStore.getState();
-    expect(state.preferredAuthors).toEqual(['Alice']);
-    expect(state.preferredSources).toEqual([]);
-    expect(state.preferredCategories).toEqual([]);
+    const { result } = renderHook(() => partialStore());
+    expect(result.current.preferredAuthors).toEqual(['Alice']);
+    expect(result.current.preferredSources).toEqual([]);
+    expect(result.current.preferredCategories).toEqual([]);
   });
 });

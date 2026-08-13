@@ -2,6 +2,8 @@ import type { Article } from '@/contracts/Article';
 import type { NewsProvider } from '@/contracts/NewsProvider';
 import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
+import { z } from 'zod';
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 
 /**
  * NewsAPI (https://newsapi.org) adapter.
@@ -16,22 +18,28 @@ import { BaseHttpProvider } from '@/services/BaseHttpProvider';
  */
 const NEWSAPI_BASE = 'https://newsapi.org/v2';
 
-interface NewsApiVendorArticle {
-  source: { id: string | null; name: string };
-  author: string | null;
-  title: string;
-  description: string | null;
-  url: string;
-  urlToImage: string | null;
-  publishedAt: string;
-  content: string | null;
-}
+const NewsApiVendorArticleSchema = z.object({
+  source: z.object({
+    id: z.string().nullable(),
+    name: z.string(),
+  }),
+  author: z.string().nullable(),
+  title: z.string(),
+  description: z.string().nullable(),
+  url: z.string(),
+  urlToImage: z.string().nullable(),
+  publishedAt: z.string(),
+  content: z.string().nullable(),
+});
 
-interface NewsApiVendorResponse {
-  status: string;
-  totalResults: number;
-  articles: NewsApiVendorArticle[];
-}
+const NewsApiVendorResponseSchema = z.object({
+  status: z.string(),
+  totalResults: z.number(),
+  articles: z.array(NewsApiVendorArticleSchema),
+});
+
+type NewsApiVendorArticle = z.infer<typeof NewsApiVendorArticleSchema>;
+type NewsApiVendorResponse = z.infer<typeof NewsApiVendorResponseSchema>;
 
 export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
   readonly id = 'newsapi';
@@ -44,31 +52,35 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     // hung call is usually a CORS preflight failure or dead upstream, not
     // a slow network. 8s is plenty for a healthy call.
     super({ timeoutMs: 8_000, maxAttempts: 2, initialBackoffMs: 250 });
-    this.apiKey = apiKey;
+    // Treat empty string the same as undefined so a missing/blank env var
+    // short-circuits in buildUrl() instead of firing a keyless request.
+    this.apiKey = apiKey || undefined;
   }
 
   search(params: SearchParams, signal?: AbortSignal): Promise<Article[]> {
-    const { url, error } = this.buildUrl(params);
+    const { url, error } = this.buildUrl({ params });
     if (error) {
       // Missing key is a 4xx-class problem for the caller — short-circuit
       // with a typed error instead of issuing a request that will 401.
       return Promise.reject(new Error(error));
     }
-    return this.getJson<NewsApiVendorResponse>(url, { headers: this.headers() }, signal).then(
-      (res) => res.articles.map((a) => this.mapToArticle(a)),
-    );
+    return this.getJson<NewsApiVendorResponse>(url, { headers: this.headers() }, signal)
+      .then((res) => {
+        const validated = NewsApiVendorResponseSchema.parse(res);
+        return validated.articles.map((a) => this.mapToArticle(a));
+      });
   }
 
   /** Exposed for unit testing — see services/providers/NewsApiProvider.test.ts. */
   mapToArticle(vendor: NewsApiVendorArticle): Article {
     return {
       id: `${this.id}:${vendor.url}`,
-      title: vendor.title ?? '',
-      summary: vendor.description ?? '',
+      title: sanitizeHtml(vendor.title ?? ''),
+      summary: sanitizeHtml(vendor.description ?? ''),
       url: vendor.url,
       imageUrl: vendor.urlToImage,
       author: vendor.author,
-      source: vendor.source?.name || 'NewsAPI',
+      source: vendor.source?.name || this.displayName,
       category: null, // NewsAPI /everything and /top-headlines don't return a per-article category
       publishedAt: vendor.publishedAt,
     };
@@ -78,7 +90,7 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     return { 'X-Api-Key': this.apiKey ?? '' };
   }
 
-  private buildUrl(params: SearchParams): { url: string; error?: string } {
+  private buildUrl({ params }: { params: SearchParams; }): { url: string; error?: string } {
     if (!this.apiKey) {
       return { url: '', error: 'VITE_NEWSAPI_KEY is not set' };
     }
@@ -104,6 +116,9 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     }
 
     url.searchParams.set('pageSize', '50');
+    if (params.page) {
+      url.searchParams.set('page', String(params.page));
+    }
     return { url: url.toString() };
   }
 }

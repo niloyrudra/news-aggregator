@@ -190,6 +190,7 @@ describe('NytProvider — search()', () => {
   });
 
   it('rejects with a typed error when the API key is missing — no network call', async () => {
+    vi.stubEnv('VITE_NYT_KEY', '');
     const spy = vi.spyOn(globalThis, 'fetch');
     const unkeyed = new NytProvider(undefined);
 
@@ -214,5 +215,6 @@ describe('NytProvider — search()', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 });

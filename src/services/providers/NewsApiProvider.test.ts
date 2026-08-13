@@ -84,7 +84,7 @@ describe('NewsApiProvider — search()', () => {
   });
 
   it('returns mapped articles from the /everything endpoint when a keyword is present', async () => {
-    const seen: { url?: string; key?: string } = {};
+    const seen: { url?: string; key?: string | null } = {};
     server.use(
       http.get('https://newsapi.org/v2/everything', ({ request }) => {
         seen.url = request.url;
@@ -117,6 +117,7 @@ describe('NewsApiProvider — search()', () => {
   });
 
   it('rejects with a typed error when the API key is missing — no network call', async () => {
+    vi.stubEnv('VITE_NEWSAPI_KEY', '');
     const spy = vi.spyOn(globalThis, 'fetch');
     const unkeyed = new NewsApiProvider(undefined);
 
@@ -139,5 +140,6 @@ describe('NewsApiProvider — search()', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
   });
 });

@@ -40,15 +40,7 @@ export function useArticles(
       ...filters,
       keyword: debouncedKeyword,
     }),
-    [
-      filters,
-      filters.dateFrom,
-      filters.dateTo,
-      filters.category,
-      filters.sources,
-      filters.authors,
-      debouncedKeyword,
-    ],
+    [filters, debouncedKeyword],
   );
 
   // Use the JSON-stringified form as the cache discriminator so array-valued

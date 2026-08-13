@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { XCircleIcon, ExclamationTriangleIcon } from 'lucide-react';
+import { XCircleIcon, AlertTriangleIcon } from 'lucide-react';
 
 interface SourceStatus {
   [key: string]: 'ok' | 'error';
@@ -10,25 +10,26 @@ interface SourceStatusNoticeProps {
 }
 
 export function SourceStatusNotice({ sourceStatus }: SourceStatusNoticeProps) {
-  const [dismissed, setDismissed] = useState<Record<string, boolean>>({});
+  const [dismissed, setDismissed] = useState(false);
 
-  // Find all providers that are in error state
-  const errorSources = Object.entries(sourceStatus)
-    .filter(([_, status]) => status === 'error')
-    .map(([sourceId]) => sourceId);
+   // Find all providers that are in error state
+   const errorSources = Object.entries(sourceStatus)
+     // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     .filter(([_, status]) => status === 'error')
+     .map(([sourceId]) => sourceId);
 
-  if (errorSources.length === 0) {
-    return null;
-  }
+   if (errorSources.length === 0 || dismissed) {
+     return null;
+   }
 
-  const handleDismiss = (sourceId: string) => {
-    setDismissed(prev => ({ ...prev, [sourceId]: true }));
-  };
+   const handleDismiss = () => {
+     setDismissed(true);
+   };
 
   return (
     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
       <div className="flex items-start">
-        <ExclamationTriangleIcon
+        <AlertTriangleIcon  // ExclamationTriangleIcon
           className="h-5 w-5 text-yellow-400 mt-0.5 flex-shrink-0"
           aria-hidden="true"
         />
@@ -51,7 +52,7 @@ export function SourceStatusNotice({ sourceStatus }: SourceStatusNoticeProps) {
         </div>
         <button
           type="button"
-          onClick={() => handleDismiss(errorSources[0])}
+          onClick={handleDismiss}
           className="ml-4 flex-shrink-0 text-yellow-400 hover:text-yellow-600 focus:outline-none"
           aria-label="Dismiss notice"
         >

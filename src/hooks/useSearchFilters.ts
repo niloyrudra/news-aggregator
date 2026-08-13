@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import type { SearchParams } from '@/contracts/SearchParams';
 import {
-  getSearchFiltersFromUrl,
+  getCachedSearchFiltersFromUrl,
   writeSearchFiltersToUrl,
   type UrlSearchFiltersPatch,
 } from '@/lib/urlSearchFilters';
@@ -22,8 +22,8 @@ export function useSearchFilters() {
   // (back/forward, programmatic push, manual edit) without an effect.
   const snapshot = useSyncExternalStore(
     subscribeToUrlChanges,
-    () => getSearchFiltersFromUrl(),
-    () => getSearchFiltersFromUrl(),
+    getCachedSearchFiltersFromUrl,
+    getCachedSearchFiltersFromUrl,
   );
 
   const setParam = useCallback(

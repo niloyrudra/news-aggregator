@@ -2,6 +2,8 @@ import type { Article } from '@/contracts/Article';
 import type { NewsProvider } from '@/contracts/NewsProvider';
 import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
+import { z } from 'zod';
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 
 /**
  * The Guardian Open Platform adapter — https://open-platform.theguardian.com
@@ -16,32 +18,41 @@ import { BaseHttpProvider } from '@/services/BaseHttpProvider';
  */
 const GUARDIAN_BASE = 'https://content.guardianapis.com';
 
-interface GuardianVendorTag {
-  webTitle: string;
-  type: string; // 'contributor' | 'keyword' | 'tone' | 'type' | ...
-}
+const GuardianVendorTagSchema = z.object({
+  webTitle: z.string(),
+  type: z.string(), // 'contributor' | 'keyword' | 'tone' | 'type' | ...
+});
 
-interface GuardianVendorArticle {
-  id: string;
-  webTitle: string;
-  webUrl: string;
-  webPublicationDate: string;
-  sectionName: string;
+const GuardianVendorArticleSchema = z.object({
+  id: z.string(),
+  webTitle: z.string(),
+  webUrl: z.string(),
+  webPublicationDate: z.string(),
+  sectionName: z.string(),
   /** Present only when `show-fields` is requested. */
-  fields?: {
-    trailText?: string;
-    thumbnail?: string;
-  };
-  tags?: GuardianVendorTag[];
-}
+  fields: z
+    .object({
+      // Real Guardian responses omit `thumbnail` when an article has no
+      // image, and `trailText` is not guaranteed either — each is optional.
+      trailText: z.string().nullable().optional(),
+      thumbnail: z.string().nullable().optional(),
+    })
+    .nullable()
+    .optional(),
+  tags: z.array(GuardianVendorTagSchema).nullable().optional(),
+});
 
-interface GuardianVendorResponse {
-  response: {
-    status: string;
-    total: number;
-    results: GuardianVendorArticle[];
-  };
-}
+const GuardianVendorResponseSchema = z.object({
+  response: z.object({
+    status: z.string(),
+    total: z.number(),
+    results: z.array(GuardianVendorArticleSchema),
+  }),
+});
+
+type GuardianVendorTag = z.infer<typeof GuardianVendorTagSchema>;
+type GuardianVendorArticle = z.infer<typeof GuardianVendorArticleSchema>;
+type GuardianVendorResponse = z.infer<typeof GuardianVendorResponseSchema>;
 
 export class GuardianProvider extends BaseHttpProvider implements NewsProvider {
   readonly id = 'guardian';
@@ -54,7 +65,9 @@ export class GuardianProvider extends BaseHttpProvider implements NewsProvider {
     // reachable; a slow call usually means CORS preflight is hanging, which
     // this timeout surfaces as a clean error rather than blocking the UI.
     super({ timeoutMs: 8_000, maxAttempts: 2, initialBackoffMs: 250 });
-    this.apiKey = apiKey;
+    // Treat empty string the same as undefined so a missing/blank env var
+    // short-circuits in buildUrl() instead of firing a keyless request.
+    this.apiKey = apiKey || undefined;
   }
 
   search(params: SearchParams, signal?: AbortSignal): Promise<Article[]> {
@@ -62,20 +75,21 @@ export class GuardianProvider extends BaseHttpProvider implements NewsProvider {
     if (error) {
       return Promise.reject(new Error(error));
     }
-    return this.getJson<GuardianVendorResponse>(url, undefined, signal).then((res) =>
-      res.response.results.map((a) => this.mapToArticle(a)),
-    );
+    return this.getJson<GuardianVendorResponse>(url, undefined, signal).then((res) => {
+      const validated = GuardianVendorResponseSchema.parse(res);
+      return validated.response.results.map((a) => this.mapToArticle(a));
+    });
   }
 
   /** Exposed for unit testing — see services/providers/GuardianProvider.test.ts. */
   mapToArticle(vendor: GuardianVendorArticle): Article {
     return {
       id: `${this.id}:${vendor.id}`,
-      title: vendor.webTitle ?? '',
-      summary: vendor.fields?.trailText ?? '',
+      title: sanitizeHtml(vendor.webTitle ?? ''),
+      summary: sanitizeHtml(vendor.fields?.trailText ?? ''),
       url: vendor.webUrl,
       imageUrl: vendor.fields?.thumbnail ?? null,
-      author: this.firstContributor(vendor.tags),
+      author: this.firstContributor(vendor.tags || undefined),
       source: this.displayName,
       category: vendor.sectionName || null,
       publishedAt: vendor.webPublicationDate,
@@ -107,6 +121,9 @@ export class GuardianProvider extends BaseHttpProvider implements NewsProvider {
     url.searchParams.set('show-tags', 'contributor');
 
     url.searchParams.set('page-size', '50');
+    if (params.page) {
+      url.searchParams.set('page', String(params.page));
+    }
     url.searchParams.set('api-key', this.apiKey);
     return { url: url.toString() };
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, type FormEvent, type ChangeEvent } from 'react';
 import { useSearchFilters } from '@/hooks/useSearchFilters';
 import { SearchIcon, XCircleIcon } from 'lucide-react';
 
@@ -6,13 +6,13 @@ export function SearchBar() {
   const { keyword, setKeyword } = useSearchFilters();
   const [inputValue, setInputValue] = useState(keyword ?? '');
 
-  useEffect(() => {
-    setInputValue(keyword ?? '');
-  }, [keyword]);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setKeyword(inputValue || null);
+  };
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
   };
 
   const handleClear = () => {
@@ -30,7 +30,7 @@ export function SearchBar() {
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={handleChange}
           placeholder="Search news..."
           className="w-full pl-10 pr-10 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-900 placeholder-gray-500"
         />
