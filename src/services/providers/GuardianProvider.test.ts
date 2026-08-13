@@ -157,7 +157,8 @@ describe('GuardianProvider — search()', () => {
       dateTo: '2026-08-12',
     });
 
-    expect(seenUrl).toContain('section=Politics');
+    // Category is mapped to Guardian's expected format (lowercase)
+    expect(seenUrl).toContain('section=politics');
     expect(seenUrl).toContain('from-date=2026-08-01');
     expect(seenUrl).toContain('to-date=2026-08-12');
   });

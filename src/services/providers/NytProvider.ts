@@ -4,6 +4,7 @@ import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
 import { z } from 'zod';
 import { sanitizeHtml } from '@/utils/sanitizeHtml';
+import { mapCategoryForProvider } from '@/lib/categoryMapping';
 
 /**
  * The New York Times Article Search API adapter — https://developer.nytimes.com/docs/articlesearch-product/1/overview
@@ -134,7 +135,14 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
     if (params.keyword) url.searchParams.set('q', params.keyword);
     if (params.dateFrom) url.searchParams.set('begin_date', toNytDate(params.dateFrom));
     if (params.dateTo) url.searchParams.set('end_date', toNytDate(params.dateTo));
-    if (params.category) url.searchParams.set('fq', `news_desk:(${params.category})`);
+    
+    // Map UI category to NYT's news_desk filter
+    if (params.category) {
+      const nytCategory = mapCategoryForProvider(params.category, 'nyt');
+      if (nytCategory) {
+        url.searchParams.set('fq', `news_desk:(${nytCategory})`);
+      }
+    }
 
     url.searchParams.set('api-key', this.apiKey);
     if (params.page) {

@@ -4,6 +4,7 @@ import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
 import { z } from 'zod';
 import { sanitizeHtml } from '@/utils/sanitizeHtml';
+import { mapCategoryForProvider } from '@/lib/categoryMapping';
 
 /**
  * The Guardian Open Platform adapter — https://open-platform.theguardian.com
@@ -111,7 +112,14 @@ export class GuardianProvider extends BaseHttpProvider implements NewsProvider {
     if (params.keyword) url.searchParams.set('q', params.keyword);
     if (params.dateFrom) url.searchParams.set('from-date', params.dateFrom);
     if (params.dateTo) url.searchParams.set('to-date', params.dateTo);
-    if (params.category) url.searchParams.set('section', params.category);
+    
+    // Map UI category to Guardian's section parameter
+    if (params.category) {
+      const guardianCategory = mapCategoryForProvider(params.category, 'guardian');
+      if (guardianCategory) {
+        url.searchParams.set('section', guardianCategory);
+      }
+    }
 
     // Required: trailText + thumbnail live in `fields` and only come back if
     // we ask for them. `show-fields` is comma-separated.

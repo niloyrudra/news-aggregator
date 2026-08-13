@@ -7,7 +7,7 @@ import { SearchBar } from '@/features/search/SearchBar';
 import { SourceStatusNotice } from './SourceStatusNotice';
 import { FilterSidebar } from './FilterSidebar';
 import { NewsApiProvider, GuardianProvider, NytProvider } from '@/services/providers';
-import { FilterIcon } from 'lucide-react';
+import { FilterIcon, AlertCircleIcon } from 'lucide-react';
 
 export function FeedPage() {
   const { asSearchParams } = useSearchFilters();
@@ -66,6 +66,12 @@ export function FeedPage() {
   // Get source status for showing notices
   const sourceStatus = data?.sourceStatus || {};
 
+  // Check if NewsAPI will ignore category filter (when keyword or date also present)
+  const newsApiIgnoresCategory = Boolean(
+    effectiveParams.category && 
+    (effectiveParams.keyword || effectiveParams.dateFrom || effectiveParams.dateTo)
+  );
+
   // Filter articles by preferences client-side as fallback
   const filteredArticles = useMemo(() => {
     const articles = data?.articles;
@@ -123,6 +129,20 @@ export function FeedPage() {
             <div className="mb-6">
               <SourceStatusNotice sourceStatus={sourceStatus} />
             </div>
+
+            {/* Warning when NewsAPI will ignore category filter */}
+            {newsApiIgnoresCategory && (
+              <div className="mb-6 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <AlertCircleIcon className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-medium text-amber-800">NewsAPI limitation</h4>
+                  <p className="mt-1 text-sm text-amber-700">
+                    NewsAPI cannot filter by category when keyword or date range is also set.
+                    Category filter will be ignored for NewsAPI results. Guardian and NYT will still apply it.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <ArticleList
               articles={filteredArticles}

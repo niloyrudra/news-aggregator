@@ -1,23 +1,35 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useSearchFilters } from '@/hooks/useSearchFilters';
+import { usePreferencesStore } from '@/features/preferences/store';
 import { NavigationItem } from './ui/NavigationItem';
-import { FilterIcon, HomeIcon } from 'lucide-react';
+import { HomeIcon, RssIcon } from 'lucide-react';
 
 export function Navigation() {
   const location = useLocation();
   const { keyword, category, dateFrom, dateTo, sources, authors, resetAll } = useSearchFilters();
+  const { preferredSources, preferredCategories, preferredAuthors } = usePreferencesStore();
+  
+  // Compute effective filters (URL params + preferences as defaults)
+  const effectiveCategory = category || preferredCategories[0];
+  const effectiveSources = (sources && sources.length > 0) ? sources : preferredSources;
+  const effectiveAuthors = (authors && authors.length > 0) ? authors : preferredAuthors;
   
   const hasActiveFilters = Boolean(
-    keyword || category || dateFrom || dateTo || (sources && sources.length > 0) || (authors && authors.length > 0)
+    keyword || 
+    effectiveCategory || 
+    dateFrom || 
+    dateTo || 
+    (effectiveSources && effectiveSources.length > 0) || 
+    (effectiveAuthors && effectiveAuthors.length > 0)
   );
 
   const activeFilterCount = [
     keyword && 1,
-    category && 1,
+    effectiveCategory && 1,
     dateFrom && 1,
     dateTo && 1,
-    sources?.length || 0,
-    authors?.length || 0,
+    effectiveSources?.length || 0,
+    effectiveAuthors?.length || 0,
   ].filter(Boolean).length;
 
   return (
@@ -34,7 +46,7 @@ export function Navigation() {
             <NavigationItem
               link="/"
               label={hasActiveFilters ? `Feed (${activeFilterCount})` : 'Feed'}
-              icon={<FilterIcon className="h-4 w-4" />}
+              icon={<RssIcon className="h-4 w-4" />}
               isActive={location.pathname === '/'}
             />
             <NavigationItem

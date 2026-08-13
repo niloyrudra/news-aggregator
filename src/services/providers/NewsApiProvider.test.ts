@@ -110,9 +110,11 @@ describe('NewsApiProvider — search()', () => {
       }),
     );
 
-    await provider.search({ category: 'technology' });
+    // Send UI category format (capitalized) - provider will map to NewsAPI's expected format
+    await provider.search({ category: 'Technology' });
 
     expect(seen.url).toBeDefined();
+    // Category is mapped to NewsAPI's expected format (lowercase)
     expect(seen.url).toContain('category=technology');
   });
 

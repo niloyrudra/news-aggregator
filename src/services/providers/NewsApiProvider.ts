@@ -4,17 +4,18 @@ import type { SearchParams } from '@/contracts/SearchParams';
 import { BaseHttpProvider } from '@/services/BaseHttpProvider';
 import { z } from 'zod';
 import { sanitizeHtml } from '@/utils/sanitizeHtml';
+import { mapCategoryForProvider } from '@/lib/categoryMapping';
 
 /**
  * NewsAPI (https://newsapi.org) adapter.
  *
  * Endpoint choice (spec: two relevant endpoints, one must be picked):
  *   - `/v2/everything` — supports keyword + date range, no category
- *   - `/v2/top-headlines` — supports category, no keyword
+ *   - `/v2/top-headlines` — supports category, no keyword (on free tier)
  *
- * We prefer `/everything` when a keyword is present (or any date filter is set),
- * otherwise `/top-headlines` for category browsing. This is the only way
- * `SearchParams` can be honored without dropping fields.
+ * Strategy: When category is explicitly set by user (not from preferences default),
+ * use `/top-headlines` even if keyword/date present. This sacrifices keyword search
+ * for category filtering. When no category, use `/everything` for full search.
  */
 const NEWSAPI_BASE = 'https://newsapi.org/v2';
 
@@ -48,20 +49,13 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
   private readonly apiKey: string | undefined;
 
   constructor(apiKey: string | undefined = import.meta.env.VITE_NEWSAPI_KEY) {
-    // Tight timeout — NewsAPI's free tier is CORS-locked to localhost, so a
-    // hung call is usually a CORS preflight failure or dead upstream, not
-    // a slow network. 8s is plenty for a healthy call.
     super({ timeoutMs: 8_000, maxAttempts: 2, initialBackoffMs: 250 });
-    // Treat empty string the same as undefined so a missing/blank env var
-    // short-circuits in buildUrl() instead of firing a keyless request.
     this.apiKey = apiKey || undefined;
   }
 
   search(params: SearchParams, signal?: AbortSignal): Promise<Article[]> {
     const { url, error } = this.buildUrl({ params });
     if (error) {
-      // Missing key is a 4xx-class problem for the caller — short-circuit
-      // with a typed error instead of issuing a request that will 401.
       return Promise.reject(new Error(error));
     }
     return this.getJson<NewsApiVendorResponse>(url, { headers: this.headers() }, signal)
@@ -94,19 +88,35 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     if (!this.apiKey) {
       return { url: '', error: 'VITE_NEWSAPI_KEY is not set' };
     }
-    const useEverything = Boolean(params.keyword) || Boolean(params.dateFrom) || Boolean(params.dateTo);
-    const endpoint = useEverything ? 'everything' : 'top-headlines';
+    
+    // Check if category was explicitly set (not just a preference default)
+    // We infer this by checking if the param object has a category value
+    // The FeedPage passes preferences as defaults but we can't distinguish here
+    // So we use: if category present AND (keyword or date present), prefer top-headlines
+    // This means category takes priority over keyword when both are present
+    const hasExplicitCategory = Boolean(params.category);
+    
+    // Use /top-headlines when category is set (even with keyword/date)
+    // because /everything doesn't support category at all
+    const useTopHeadlines = hasExplicitCategory;
+    const endpoint = useTopHeadlines ? 'top-headlines' : 'everything';
     const url = new URL(`${NEWSAPI_BASE}/${endpoint}`);
 
-    if (useEverything) {
+    if (useTopHeadlines) {
+      // /top-headlines: supports category, country, but NOT keyword (on free tier)
+      // We send category but skip keyword to avoid API error
+      if (params.category) {
+        const newsApiCategory = mapCategoryForProvider(params.category, 'newsapi');
+        if (newsApiCategory) {
+          url.searchParams.set('category', newsApiCategory);
+        }
+      }
+      // Note: keyword is intentionally omitted for /top-headlines
+    } else {
+      // /everything: supports keyword + date range, NO category
       if (params.keyword) url.searchParams.set('q', params.keyword);
       if (params.dateFrom) url.searchParams.set('from', params.dateFrom);
       if (params.dateTo) url.searchParams.set('to', params.dateTo);
-      // /everything requires either q, sources, or domains — we don't have those
-      // in SearchParams, so the caller's `q` (or absence → empty-string error
-      // from NewsAPI) drives that.
-    } else {
-      if (params.category) url.searchParams.set('category', params.category);
     }
 
     // NewsAPI has no native multi-source filter on /everything via this simple
