@@ -1,0 +1,11 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        VITE_NEWSAPI_KEY: ${VITE_NEWSAPI_KEY}
+        VITE_GUARDIAN_KEY: ${VITE_GUARDIAN_KEY}
+        VITE_NYT_KEY: ${VITE_NYT_KEY}
+    ports:
+      - "8080:80"
+    restart: unless-stopped
