@@ -25,17 +25,17 @@ cp .env.example .env
 npm run dev
 ```
 
-Open http://localhost:5173
+Open <http://localhost:5173>
 
 ## API Keys
 
 You need free API keys from three providers:
 
 | Provider | Signup URL | Free Tier |
-|----------|------------|-----------|
-| **NewsAPI** | https://newsapi.org/register | 100 requests/day, localhost only (CORS) |
-| **The Guardian** | https://open-platform.theguardian.com/access/ | Free, CORS support undocumented |
-| **NY Times** | https://developer.nytimes.com/get-started | 500 requests/day |
+| ---------- | ------------ | ----------- |
+| **NewsAPI** | <https://newsapi.org/register> | 100 requests/day, localhost only (CORS) |
+| **The Guardian** | <https://open-platform.theguardian.com/access/> | Free, CORS support undocumented |
+| **NY Times** | <https://developer.nytimes.com/get-started> | 500 requests/day |
 
 Add them to `.env`:
 
@@ -54,7 +54,7 @@ VITE_NYT_KEY=your_nyt_key
 docker compose up --build
 ```
 
-Open http://localhost:8080
+Open <http://localhost:8080>
 
 ### Environment Variables for Docker
 
@@ -71,7 +71,7 @@ docker compose up --build
 
 ## Project Structure
 
-```
+```text
 src/
   features/
     feed/           # ArticleList, ArticleCard, FilterSidebar, FeedPage
@@ -112,6 +112,7 @@ npm run test:e2e:ui
 ```
 
 Test coverage includes:
+
 - Provider adapter mapping (NewsAPI, Guardian, NYT)
 - AggregatorService failure isolation (`Promise.allSettled`)
 - Preferences store Zod validation on load
@@ -141,7 +142,7 @@ See `ARCHITECTURE.md` for full reasoning.
 ## Scripts
 
 | Command | Description |
-|---------|-------------|
+| --------- | ------------- |
 | `npm run dev` | Start Vite dev server |
 | `npm run build` | Type-check + production build |
 | `npm run preview` | Preview production build locally |
@@ -150,7 +151,3 @@ See `ARCHITECTURE.md` for full reasoning.
 | `npm run test:ui` | Run unit tests with UI |
 | `npm run test:e2e` | Run e2e tests (Playwright) |
 | `npm run test:e2e:ui` | Run e2e tests with UI |
-
-## License
-
-MIT — take-home case study for innoscripta.
