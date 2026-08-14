@@ -1,6 +1,6 @@
 // Category mapping between UI display names and provider-specific values
 
-export type UICategory = 
+type UICategory = 
   | 'Politics' 
   | 'Business' 
   | 'Technology' 
@@ -9,18 +9,18 @@ export type UICategory =
   | 'Sports' 
   | 'Entertainment';
 
-export const UI_CATEGORIES: UICategory[] = [
-  'Politics',
-  'Business',
-  'Technology',
-  'Science',
-  'Health',
-  'Sports',
-  'Entertainment',
-];
+// const UI_CATEGORIES: UICategory[] = [
+//   'Politics',
+//   'Business',
+//   'Technology',
+//   'Science',
+//   'Health',
+//   'Sports',
+//   'Entertainment',
+// ];
 
 // Guardian API section names (lowercase)
-export const GUARDIAN_CATEGORY_MAP: Record<UICategory, string> = {
+const GUARDIAN_CATEGORY_MAP: Record<UICategory, string> = {
   Politics: 'politics',
   Business: 'business',
   Technology: 'technology',
@@ -31,7 +31,7 @@ export const GUARDIAN_CATEGORY_MAP: Record<UICategory, string> = {
 };
 
 // NYT API news_desk values (case-sensitive, matches UI mostly)
-export const NYT_CATEGORY_MAP: Record<UICategory, string> = {
+const NYT_CATEGORY_MAP: Record<UICategory, string> = {
   Politics: 'Politics',
   Business: 'Business',
   Technology: 'Technology',
@@ -42,7 +42,7 @@ export const NYT_CATEGORY_MAP: Record<UICategory, string> = {
 };
 
 // NewsAPI category values (lowercase)
-export const NEWSAPI_CATEGORY_MAP: Record<UICategory, string> = {
+const NEWSAPI_CATEGORY_MAP: Record<UICategory, string> = {
   Politics: 'general',  // NewsAPI doesn't have politics, use general
   Business: 'business',
   Technology: 'technology',

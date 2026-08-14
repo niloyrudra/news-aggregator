@@ -36,7 +36,7 @@ const PARAM_KEYS: (keyof UrlSearchFilters)[] = [
 ];
 
 /** Read the current filters from `window.location.search`. */
-export function getSearchFiltersFromUrl(): UrlSearchFilters {
+function getSearchFiltersFromUrl(): UrlSearchFilters {
   const params = new URLSearchParams(window.location.search);
   const result: UrlSearchFilters = {
     keyword: undefined,

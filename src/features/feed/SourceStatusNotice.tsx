@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { XCircleIcon, AlertTriangleIcon } from 'lucide-react';
+import { AlertTriangleIcon } from 'lucide-react';
+import { CloseButton } from '@/components/ui/CloseButton';
 
 interface SourceStatus {
   [key: string]: 'ok' | 'error';
@@ -50,14 +51,15 @@ export function SourceStatusNotice({ sourceStatus }: SourceStatusNoticeProps) {
             </ul>
           </div>
         </div>
-        <button
+        {/* <button
           type="button"
           onClick={handleDismiss}
           className="ml-4 flex-shrink-0 text-yellow-400 hover:text-yellow-600 focus:outline-none"
           aria-label="Dismiss notice"
         >
           <XCircleIcon className="h-5 w-5" />
-        </button>
+        </button> */}
+        <CloseButton onClick={handleDismiss} />
       </div>
     </div>
   );

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useSearchFilters } from '@/hooks/useSearchFilters';
+import { useCombinedFilters } from '@/hooks/useCombinedFilters';
 import { useArticles } from '@/hooks/useArticles';
-import { usePreferencesStore } from '@/features/preferences/store';
 import { ArticleList } from './ArticleList';
 import { SearchBar } from '@/features/search/SearchBar';
 import { SourceStatusNotice } from './SourceStatusNotice';
@@ -10,11 +9,8 @@ import { NewsApiProvider, GuardianProvider, NytProvider } from '@/services/provi
 import { FilterIcon, AlertCircleIcon } from 'lucide-react';
 
 export function FeedPage() {
-  const { asSearchParams } = useSearchFilters();
+  const { asEffectiveSearchParams, effectiveSources } = useCombinedFilters();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  // Get user's preferred sources from preferences
-  const { preferredSources, preferredCategories, preferredAuthors } = usePreferencesStore();
 
   // Initialize providers with proper source filtering
   const providers = useMemo(() => {
@@ -24,42 +20,18 @@ export function FeedPage() {
       new NytProvider()
     ];
 
-    // If user has preferred sources, filter to only those
-    if (preferredSources.length > 0) {
+    if (effectiveSources.length > 0) {
       return allProviders.filter(provider =>
-        preferredSources.includes(provider.id)
+        effectiveSources.includes(provider.id)
       );
     }
 
     // Otherwise, return all providers
     return allProviders;
-  }, [preferredSources]);
+  }, [effectiveSources]);
 
-  // Apply preferences as defaults to search params if no explicit filters
-  const effectiveParams = useMemo(() => {
-    const searchParams = asSearchParams();
-    
-    // Only apply preferences as defaults if user hasn't explicitly set filters
-    const hasExplicitFilters = Boolean(
-      searchParams.keyword ||
-      searchParams.dateFrom ||
-      searchParams.dateTo ||
-      searchParams.category ||
-      (searchParams.sources && searchParams.sources.length > 0) ||
-      (searchParams.authors && searchParams.authors.length > 0)
-    );
-
-    if (!hasExplicitFilters) {
-      return {
-        ...searchParams,
-        category: searchParams.category || preferredCategories[0] || undefined,
-        sources: searchParams.sources?.length ? searchParams.sources : preferredSources,
-        authors: searchParams.authors?.length ? searchParams.authors : preferredAuthors,
-      };
-    }
-
-    return searchParams;
-  }, [asSearchParams, preferredCategories, preferredSources, preferredAuthors]);
+  // Use effective params (URL params with preferences as defaults)
+  const effectiveParams = asEffectiveSearchParams();
 
   const { data, isLoading, isError } = useArticles(providers, effectiveParams);
 
@@ -72,36 +44,29 @@ export function FeedPage() {
     (effectiveParams.keyword || effectiveParams.dateFrom || effectiveParams.dateTo)
   );
 
-  // Filter articles by preferences client-side as fallback
+  // Filter articles by effective params (URL params with preferences as defaults) client-side as fallback
   const filteredArticles = useMemo(() => {
     const articles = data?.articles;
     if (!articles) return [];
     
     return articles.filter((article) => {
-      // Filter by preferred categories if set and not overridden by explicit filter
-      if (preferredCategories.length > 0 && !effectiveParams.category) {
-        if (!article.category || !preferredCategories.includes(article.category)) {
+      // Filter by effective category
+      if (effectiveParams.category && article.category) {
+        if (!effectiveParams.category.includes(article.category)) {
           return false;
         }
       }
       
-      // Filter by preferred sources if set and not overridden by explicit filter
-      if (preferredSources.length > 0 && (!effectiveParams.sources || effectiveParams.sources.length === 0)) {
-        if (!preferredSources.includes(article.source)) {
-          return false;
-        }
-      }
-      
-      // Filter by preferred authors if set and not overridden by explicit filter
-      if (preferredAuthors.length > 0 && (!effectiveParams.authors || effectiveParams.authors.length === 0)) {
-        if (!article.author || !preferredAuthors.includes(article.author)) {
+      // Filter by effective authors
+      if (effectiveParams.authors && effectiveParams.authors.length > 0) {
+        if (!article.author || !effectiveParams.authors.includes(article.author)) {
           return false;
         }
       }
       
       return true;
     });
-  }, [data?.articles, effectiveParams, preferredCategories, preferredSources, preferredAuthors]);
+  }, [data?.articles, effectiveParams]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -145,6 +110,7 @@ export function FeedPage() {
             )}
 
             <ArticleList
+              key={JSON.stringify(effectiveParams)}
               articles={filteredArticles}
               isLoading={isLoading}
               hasError={isError}

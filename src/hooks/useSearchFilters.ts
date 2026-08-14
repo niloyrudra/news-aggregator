@@ -44,6 +44,16 @@ export function useSearchFilters() {
     });
   }, []);
 
+  const resetFilters = useCallback(() => {
+    writeSearchFiltersToUrl({
+      dateFrom: null,
+      dateTo: null,
+      category: null,
+      sources: null,
+      authors: null,
+    });
+  }, []);
+
   return useMemo(
     () => ({
       ...snapshot,
@@ -54,6 +64,7 @@ export function useSearchFilters() {
       setSources: (value: string[] | null) => setParam('sources', value),
       setAuthors: (value: string[] | null) => setParam('authors', value),
       resetAll,
+      resetFilters,
       /** The aggregated `SearchParams` shape consumed by the providers. */
       asSearchParams: (): SearchParams => ({
         keyword: snapshot.keyword,
@@ -64,7 +75,7 @@ export function useSearchFilters() {
         authors: snapshot.authors,
       }),
     }),
-    [snapshot, setParam, resetAll],
+    [snapshot, setParam, resetAll, resetFilters],
   );
 }
 
