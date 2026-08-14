@@ -3,11 +3,14 @@
  * response. Three docs exercising: full article (byline + image + both date
  * fields), missing byline (author null), missing multimedia (image null).
  *
- * Real response shape:
- *   https://developer.nytimes.com/docs/articlesearch-product/1/routes/articlesearch.json/get
+ * Real response shape (verified live 2026-08-14):
+ *   - `multimedia` is an OBJECT with `default`/`thumbnail` keys, NOT an array
+ *   - `multimedia.default.url` / `multimedia.thumbnail.url` are ABSOLUTE URLs
+ *     (`https://static01.nyt.com/...`), not path-only strings
+ *   - `lead_paragraph` is NOT present in real responses — only `abstract`
  *
- * Note: `multimedia[].url` is intentionally a path-only string (`/images/...`)
- * — the adapter prepends the NYT image host. This mirrors the real wire format.
+ * Reference:
+ *   https://developer.nytimes.com/docs/articlesearch-product/1/routes/articlesearch.json/get
  */
 export const nytArticlesResponse = {
   status: 'OK',
@@ -21,8 +24,6 @@ export const nytArticlesResponse = {
         },
         abstract:
           'Forty nations signed a nonbinding agreement to slash methane emissions faster than planned.',
-        lead_paragraph:
-          'After three days of negotiations, delegates from forty nations signed a surprise nonbinding agreement…',
         web_url:
           'https://www.nytimes.com/2026/08/11/world/climate/climate-summit-2026.html',
         pub_date: '2026-08-11T12:30:00Z',
@@ -31,13 +32,20 @@ export const nytArticlesResponse = {
         byline: {
           original: 'By Lisa Friedman and Max Bearak',
         },
-        multimedia: [
-          {
-            url: '/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
-            type: 'image',
-            subtype: 'default',
+        multimedia: {
+          caption: 'Delegates at the climate summit in Geneva.',
+          credit: 'Jean-Pierre Clatot/Agence France-Presse',
+          default: {
+            url: 'https://static01.nyt.com/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
+            height: 400,
+            width: 600,
           },
-        ],
+          thumbnail: {
+            url: 'https://static01.nyt.com/images/2026/08/11/climate-summit/merlin-123456-thumbStandard.jpg',
+            height: 75,
+            width: 75,
+          },
+        },
       },
       {
         _id: 'nyt://article/2026-08-12T08:00:00Z/fed-rate-decision',
@@ -52,13 +60,20 @@ export const nytArticlesResponse = {
         news_desk: 'Business',
         section_name: 'Business',
         // No byline — anonymous wire story.
-        multimedia: [
-          {
-            url: '/images/2026/08/12/fed/thumb-789.jpg',
-            type: 'image',
-            subtype: 'thumb',
+        multimedia: {
+          caption: 'The Federal Reserve building in Washington.',
+          credit: 'Al Drago/Bloomberg',
+          default: {
+            url: 'https://static01.nyt.com/images/2026/08/12/fed/merlin-789-default.jpg',
+            height: 400,
+            width: 600,
           },
-        ],
+          thumbnail: {
+            url: 'https://static01.nyt.com/images/2026/08/12/fed/thumb-789.jpg',
+            height: 75,
+            width: 75,
+          },
+        },
       },
       {
         _id: 'nyt://article/2026-08-12T15:45:00Z/op-ed-ai-policy',

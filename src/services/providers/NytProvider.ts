@@ -12,9 +12,9 @@ import { mapCategoryForProvider } from '@/lib/categoryMapping';
  * Single endpoint (`/articlesearch.json`) handles keyword + date range + section/news-desk filter.
  * Auth is via the `api-key` query parameter, not a header — same shape as Guardian.
  *
- * NYT returns relative URLs in `multimedia[].url` (e.g. `/images/...`); we prepend
- * the NYT image host (`https://www.nytimes.com/`) so the mapped `imageUrl` is
- * ready to drop into an `<img src>`.
+ * Real API returns `multimedia` as an OBJECT with `default`/`thumbnail` keys
+ * containing ABSOLUTE URLs (`https://static01.nyt.com/...`). The host-prepend
+ * safety net below only applies to path-only URLs from edge-case responses.
  *
  * Reliability note: like Guardian, NYT's CORS support from the browser is not
  * guaranteed. The AggregatorService's `Promise.allSettled` strategy is what
@@ -23,11 +23,40 @@ import { mapCategoryForProvider } from '@/lib/categoryMapping';
 const NYT_BASE = 'https://api.nytimes.com/svc/search/v2';
 const NYT_IMAGE_HOST = 'https://www.nytimes.com';
 
+/**
+ * Real NYT Article Search API returns `multimedia` as an OBJECT, not an array:
+ *
+ *   multimedia: {
+ *     caption: "...",
+ *     credit: "...",
+ *     default:  { url: "https://static01.nyt.com/...", height: 400, width: 600 },
+ *     thumbnail: { url: "https://static01.nyt.com/...", height: 75, width: 75 }
+ *   }
+ *
+ * Verified live against the production API (2026-08-14). The earlier array
+ * shape was a fixture artifact — every real response uses this object shape.
+ */
 const NytVendorMultimediaSchema = z.object({
-  url: z.string(),
-  /** 'default' — large image; 'thumb' — square thumbnail. */
-  type: z.string().nullable().optional(),
-  subtype: z.string().nullable().optional(),
+  caption: z.string().nullable().optional(),
+  credit: z.string().nullable().optional(),
+  /** 'default' — large image. */
+  default: z
+    .object({
+      url: z.string(),
+      height: z.number().optional(),
+      width: z.number().optional(),
+    })
+    .nullable()
+    .optional(),
+  /** 'thumbnail' — square thumbnail. */
+  thumbnail: z
+    .object({
+      url: z.string(),
+      height: z.number().optional(),
+      width: z.number().optional(),
+    })
+    .nullable()
+    .optional(),
 });
 
 const NytVendorHeadlineSchema = z.object({
@@ -49,13 +78,16 @@ const NytVendorDocSchema = z.object({
   news_desk: z.string().nullable().optional(),
   section_name: z.string().nullable().optional(),
   byline: NytVendorBylineSchema.nullable().optional(),
-  multimedia: z.array(NytVendorMultimediaSchema).nullable().optional(),
+  multimedia: NytVendorMultimediaSchema.nullable().optional(),
 });
 
 const NytVendorResponseSchema = z.object({
   status: z.string(),
   response: z.object({
-    docs: z.array(NytVendorDocSchema),
+    // NYT returns `docs: null` (with hits: 0) when a filter matches no
+    // results — a valid "no results" response, not an error. Treat null as
+    // an empty array so the adapter returns [] instead of throwing.
+    docs: z.array(NytVendorDocSchema).nullable().default([]),
   }),
 });
 
@@ -88,7 +120,8 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
     }
     return this.getJson<NytVendorResponse>(url, undefined, signal).then((res) => {
       const validated = NytVendorResponseSchema.parse(res);
-      return validated.response.docs.map((d) => this.mapToArticle(d));
+      // NYT returns `docs: null` when a filter matches no results — treat as [].
+      return (validated.response.docs ?? []).map((d) => this.mapToArticle(d));
     });
   }
 
@@ -99,7 +132,7 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
       title: sanitizeHtml(vendor.headline?.main ?? ''),
       summary: sanitizeHtml(vendor.abstract ?? vendor.lead_paragraph ?? ''),
       url: vendor.web_url,
-      imageUrl: this.pickImage(vendor.multimedia || []),
+      imageUrl: this.pickImage(vendor.multimedia ?? undefined),
       author: this.parseByline(vendor.byline || undefined),
       source: this.displayName,
       category: vendor.news_desk || vendor.section_name || null,
@@ -107,16 +140,21 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
     };
   }
 
-  /** NYT's multimedia array is unsorted; prefer `default`, fall back to `thumb`. */
-  private pickImage(multimedia: NytVendorMultimedia[] | undefined): string | null {
-    if (!multimedia || multimedia.length === 0) return null;
-    const preferred =
-      multimedia.find((m) => m.type === 'default') ??
-      multimedia.find((m) => m.type === 'thumb') ??
-      multimedia[0];
+  /**
+   * NYT's `multimedia` object has `default` (large) and `thumbnail` (square)
+   * keys. Prefer `default`, fall back to `thumbnail`.
+   *
+   * Real API returns ABSOLUTE URLs (`https://static01.nyt.com/...`). The host
+   * prepend is kept only as a safety net for any path-only URLs that may
+   * appear in older/edge-case responses.
+   */
+  private pickImage(multimedia: NytVendorMultimedia | undefined): string | null {
+    if (!multimedia) return null;
+    const preferred = multimedia.default ?? multimedia.thumbnail;
     if (!preferred?.url) return null;
-    // NYT returns paths like `/images/...` — prepend the host so the URL is usable.
-    return `${NYT_IMAGE_HOST}${preferred.url}`;
+    return preferred.url.startsWith('http')
+      ? preferred.url
+      : `${NYT_IMAGE_HOST}${preferred.url}`;
   }
 
   /** `By Some Author` → `Some Author`. Returns null if no byline. */
@@ -132,17 +170,20 @@ export class NytProvider extends BaseHttpProvider implements NewsProvider {
     }
 
     const url = new URL(`${NYT_BASE}/articlesearch.json`);
-    if (params.keyword) url.searchParams.set('q', params.keyword);
-    if (params.dateFrom) url.searchParams.set('begin_date', toNytDate(params.dateFrom));
-    if (params.dateTo) url.searchParams.set('end_date', toNytDate(params.dateTo));
     
-    // Map UI category to NYT's news_desk filter
+    // Build query: combine keyword and category (NYT's fq filter returns 0 hits)
+    const queryParts: string[] = [];
+    if (params.keyword) queryParts.push(params.keyword);
     if (params.category) {
       const nytCategory = mapCategoryForProvider(params.category, 'nyt');
-      if (nytCategory) {
-        url.searchParams.set('fq', `news_desk:(${nytCategory})`);
-      }
+      if (nytCategory) queryParts.push(nytCategory);
     }
+    if (queryParts.length > 0) {
+      url.searchParams.set('q', queryParts.join(' '));
+    }
+
+    if (params.dateFrom) url.searchParams.set('begin_date', toNytDate(params.dateFrom));
+    if (params.dateTo) url.searchParams.set('end_date', toNytDate(params.dateTo));
 
     url.searchParams.set('api-key', this.apiKey);
     if (params.page) {

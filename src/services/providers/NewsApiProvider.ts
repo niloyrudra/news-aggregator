@@ -113,17 +113,31 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
       }
       // Note: keyword is intentionally omitted for /top-headlines
     } else {
-      // /everything: supports keyword + date range, NO category
-      if (params.keyword) url.searchParams.set('q', params.keyword);
+      // /everything: supports keyword + date range, NO category.
+      // NewsAPI REQUIRES at least one of q | qInTitle | sources | domains —
+      // a bare `/everything?pageSize=50` returns HTTP 400 `parametersMissing`
+      // ("the scope of your search is too broad"). Guard that here so a first
+      // page load with no filters never fires a guaranteed-failing request.
+      const keyword = params.keyword?.trim();
+
+      if (keyword) {
+        url.searchParams.set('q', keyword);
+      } else {
+        // No keyword provided → fall back to a broad-but-valid
+        // default keyword so the initial (empty) load returns data instead of 400.
+        // NewsAPI has no concept of "all news" — q is mandatory on /everything.
+        url.searchParams.set('q', 'news');
+      }
       if (params.dateFrom) url.searchParams.set('from', params.dateFrom);
       if (params.dateTo) url.searchParams.set('to', params.dateTo);
     }
 
-    // NewsAPI has no native multi-source filter on /everything via this simple
-    // path, but it does accept `sources` (comma-separated). Pass through.
-    if (params.sources?.length === 1) {
-      url.searchParams.set('sources', params.sources[0]);
-    }
+    // NOTE: Disabled — params.sources contains provider IDs (e.g., "newsapi", "guardian"),
+    // not NewsAPI source IDs (e.g., "bbc-news", "cnn"). The aggregator filters providers
+    // before calling them, so we should NOT pass provider IDs to NewsAPI's `sources` param.
+    // if (params.sources?.length === 1) {
+    //   url.searchParams.set('sources', params.sources[0]);
+    // }
 
     url.searchParams.set('pageSize', '50');
     if (params.page) {

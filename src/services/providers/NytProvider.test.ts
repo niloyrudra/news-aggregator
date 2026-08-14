@@ -12,9 +12,16 @@
  *   - `category` prefers `news_desk` (granular desk) over `section_name`
  *   - `summary` prefers `abstract` (short) over `lead_paragraph` (long),
  *     defaulting to '' if neither is present
- *   - `imageUrl` picks `multimedia[].type === 'default'` first, then `'thumb'`,
- *     and prepends the NYT image host so the path-only URL becomes usable
+ *   - `imageUrl` picks `multimedia.default` first, then `multimedia.thumbnail`,
+ *     and passes through ABSOLUTE URLs unchanged (real API returns
+ *     `https://static01.nyt.com/...`); path-only URLs get the host prepended
+ *     as a safety net
  *   - Date filters are translated from ISO `YYYY-MM-DD` to NYT's `YYYYMMDD`
+ *
+ * Regression coverage (2026-08-14, verified live):
+ *   - Real NYT API returns `multimedia` as an OBJECT with `default`/`thumbnail`
+ *     keys, NOT an array. The old array-shaped schema caused every real response
+ *     to fail Zod validation → silent "no data, no error" via Promise.allSettled.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -31,7 +38,7 @@ const EXPECTED: Article[] = [
     summary:
       'Forty nations signed a nonbinding agreement to slash methane emissions faster than planned.',
     url: 'https://www.nytimes.com/2026/08/11/world/climate/climate-summit-2026.html',
-    imageUrl: 'https://www.nytimes.com/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
+    imageUrl: 'https://static01.nyt.com/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
     author: 'Lisa Friedman and Max Bearak',
     source: 'The New York Times',
     category: 'Climate',
@@ -43,7 +50,7 @@ const EXPECTED: Article[] = [
     summary:
       'Policymakers held rates steady and hinted at the end of the tightening cycle.',
     url: 'https://www.nytimes.com/2026/08/12/business/fed-rate-decision.html',
-    imageUrl: 'https://www.nytimes.com/images/2026/08/12/fed/thumb-789.jpg',
+    imageUrl: 'https://static01.nyt.com/images/2026/08/12/fed/merlin-789-default.jpg',
     author: null, // no byline on this fixture
     source: 'The New York Times',
     category: 'Business',
@@ -94,23 +101,43 @@ describe('NytProvider — mapToArticle', () => {
     expect(provider.mapToArticle(vendor).imageUrl).toBeNull();
   });
 
-  it('prepends the NYT image host to multimedia[].url', () => {
+  it('passes through absolute multimedia URLs unchanged (real API shape)', () => {
     const provider = new NytProvider('test-key');
     const [vendor] = nytArticlesResponse.response.docs;
-    expect(provider.mapToArticle(vendor).imageUrl).toMatch(/^https:\/\/www\.nytimes\.com\//);
+    expect(provider.mapToArticle(vendor).imageUrl).toBe(
+      'https://static01.nyt.com/images/2026/08/11/climate-summit/merlin-123456-default.jpg',
+    );
   });
 
-  it('falls back to `thumb` when no `default` image is present', () => {
+  it('falls back to `thumbnail` when no `default` image is present', () => {
     const provider = new NytProvider('test-key');
     const doc = {
       ...nytArticlesResponse.response.docs[0],
-      multimedia: [
-        { url: '/images/x.jpg', type: 'thumb' },
-        { url: '/images/y.jpg', type: 'image' },
-      ],
+      multimedia: {
+        caption: 'Thumbnail only',
+        credit: 'Test',
+        thumbnail: {
+          url: 'https://static01.nyt.com/images/x-thumbStandard.jpg',
+          height: 75,
+          width: 75,
+        },
+      },
     };
     expect(provider.mapToArticle(doc).imageUrl).toBe(
-      'https://www.nytimes.com/images/x.jpg',
+      'https://static01.nyt.com/images/x-thumbStandard.jpg',
+    );
+  });
+
+  it('prepends the NYT image host only for path-only URLs (safety net)', () => {
+    const provider = new NytProvider('test-key');
+    const doc = {
+      ...nytArticlesResponse.response.docs[0],
+      multimedia: {
+        default: { url: '/images/path-only.jpg', height: 400, width: 600 },
+      },
+    };
+    expect(provider.mapToArticle(doc).imageUrl).toBe(
+      'https://www.nytimes.com/images/path-only.jpg',
     );
   });
 
@@ -132,6 +159,27 @@ describe('NytProvider — mapToArticle', () => {
     const provider = new NytProvider('test-key');
     const [vendor] = nytArticlesResponse.response.docs;
     expect(provider.mapToArticle(vendor).source).toBe('The New York Times');
+  });
+
+  it('handles multimedia as an object with only caption/credit (no images)', () => {
+    const provider = new NytProvider('test-key');
+    const doc = {
+      ...nytArticlesResponse.response.docs[0],
+      multimedia: {
+        caption: 'No image available',
+        credit: 'Test',
+      },
+    };
+    expect(provider.mapToArticle(doc).imageUrl).toBeNull();
+  });
+
+  it('handles multimedia: null without throwing', () => {
+    const provider = new NytProvider('test-key');
+    const doc = {
+      ...nytArticlesResponse.response.docs[0],
+      multimedia: null,
+    };
+    expect(provider.mapToArticle(doc).imageUrl).toBeNull();
   });
 });
 
@@ -155,6 +203,89 @@ describe('NytProvider — search()', () => {
     expect(seen.url).toContain('q=climate');
   });
 
+  it('parses a real-shape NYT response with object multimedia without Zod errors', async () => {
+    // Regression test for the "no data, no error" bug: the old schema expected
+    // `multimedia` to be an array, but the real API returns an object. This
+    // test uses the exact real wire shape (object with default/thumbnail keys).
+    const realShapeResponse = {
+      status: 'OK',
+      response: {
+        docs: [
+          {
+            _id: 'nyt://article/e2feea58-78f6-5554-8384-3252d653a729',
+            headline: {
+              main: 'Top Science Body Deletes Climate Chapter From Judges Manual',
+              kicker: '',
+              print_headline: 'A Science Body Cuts a Chapter On Climate For Judges',
+            },
+            abstract:
+              'The National Academies of Sciences, Engineering and Medicine had been under pressure from Republican leaders, including President Trump.',
+            web_url:
+              'https://www.nytimes.com/2026/08/10/climate/national-academies-climate-chapter-judges.html',
+            pub_date: '2026-08-10T18:06:34Z',
+            news_desk: 'Climate',
+            section_name: 'Climate',
+            byline: { original: 'By Karen Zraick' },
+            multimedia: {
+              caption:
+                'Several months ago the Federal Judicial Center, a government agency, also removed the climate chapter from its website under Republican pressure.',
+              credit: 'Andrew Kelly/Reuters',
+              default: {
+                url: 'https://static01.nyt.com/images/2026/08/10/climate/00CLI-JUDGES-CHAPTER-01/00CLI-JUDGES-CHAPTER-01-articleLarge.jpg',
+                height: 400,
+                width: 600,
+              },
+              thumbnail: {
+                url: 'https://static01.nyt.com/images/2026/08/10/climate/00CLI-JUDGES-CHAPTER-01/00CLI-JUDGES-CHAPTER-01-thumbStandard.jpg',
+                height: 75,
+                width: 75,
+              },
+            },
+          },
+        ],
+      },
+    };
+
+    server.use(
+      http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', () =>
+        HttpResponse.json(realShapeResponse),
+      ),
+    );
+
+    const provider = new NytProvider('test-key');
+    const articles = await provider.search({ keyword: 'climate' });
+
+    expect(articles).toHaveLength(1);
+    expect(articles[0].title).toBe('Top Science Body Deletes Climate Chapter From Judges Manual');
+    expect(articles[0].imageUrl).toBe(
+      'https://static01.nyt.com/images/2026/08/10/climate/00CLI-JUDGES-CHAPTER-01/00CLI-JUDGES-CHAPTER-01-articleLarge.jpg',
+    );
+    expect(articles[0].author).toBe('Karen Zraick');
+    expect(articles[0].category).toBe('Climate');
+  });
+
+  it('treats a `docs: null` response as an empty result set (no Zod error)', async () => {
+    // Regression test: NYT returns `docs: null` (with hits: 0) when a filter
+    // matches no results — a valid "no results" response, not an error. The
+    // adapter must return [] instead of throwing a Zod validation error.
+    server.use(
+      http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', () =>
+        HttpResponse.json({
+          status: 'OK',
+          response: {
+            docs: null,
+            metadata: { hits: 0, offset: 0, time: 148 },
+          },
+        }),
+      ),
+    );
+
+    const provider = new NytProvider('test-key');
+    const articles = await provider.search({ category: 'Business' });
+
+    expect(articles).toEqual([]);
+  });
+
   it('translates ISO date range to NYT YYYYMMDD and forwards as begin_date/end_date', async () => {
     let seenUrl: string | undefined;
     server.use(
@@ -174,7 +305,7 @@ describe('NytProvider — search()', () => {
     expect(seenUrl).toContain('end_date=20260812');
   });
 
-  it('forwards category as an fq=news_desk:(...) filter', async () => {
+  it('forwards category in q parameter (NYT fq filter returns 0 hits)', async () => {
     let seenUrl: string | undefined;
     server.use(
       http.get('https://api.nytimes.com/svc/search/v2/articlesearch.json', ({ request }) => {
@@ -186,7 +317,7 @@ describe('NytProvider — search()', () => {
     const provider = new NytProvider('test-key');
     await provider.search({ category: 'Business' });
 
-    expect(seenUrl).toContain('fq=news_desk%3A%28Business%29');
+    expect(seenUrl).toContain('q=Business');
   });
 
   it('rejects with a typed error when the API key is missing — no network call', async () => {

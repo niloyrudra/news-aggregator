@@ -16,6 +16,12 @@ export type SourceStatus = 'ok' | 'error';
 export interface AggregatorResult {
   articles: Article[];
   sourceStatus: Record<string, SourceStatus>;
+  /**
+   * Per-provider error messages for sources that failed. Keyed by `provider.id`.
+   * Lets the UI show *why* a source is unavailable (e.g. "NYT: response schema
+   * mismatch") instead of a silent "no data, no error" failure.
+   */
+  sourceErrors: Record<string, string>;
 }
 
 /**
@@ -47,12 +53,13 @@ export class AggregatorService {
     // synchronously (before allSettled sees it) still shows up in the status
     // map — callers shouldn't have to guess which ids were attempted.
     const sourceStatus: Record<string, SourceStatus> = {};
+    const sourceErrors: Record<string, string> = {};
     for (const provider of providers) {
       sourceStatus[provider.id] = 'error';
     }
 
     if (providers.length === 0) {
-      return { articles: [], sourceStatus };
+      return { articles: [], sourceStatus, sourceErrors };
     }
 
     const results = await Promise.allSettled(
@@ -65,10 +72,14 @@ export class AggregatorService {
       if (settled.status === 'fulfilled') {
         sourceStatus[provider.id] = 'ok';
         articles.push(...settled.value);
+      } else {
+        // 'rejected' leaves the 'error' status we pre-seeded, but now we also
+        // capture the reason so the UI can surface it instead of failing silently.
+        sourceErrors[provider.id] =
+          settled.reason instanceof Error ? settled.reason.message : String(settled.reason);
       }
-      // 'rejected' leaves the 'error' status we pre-seeded.
     });
 
-    return { articles, sourceStatus };
+    return { articles, sourceStatus, sourceErrors };
   }
 }

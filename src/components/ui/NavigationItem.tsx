@@ -5,9 +5,10 @@ interface NavigationItemProps {
   label: string;
   icon?: React.ReactElement;
   isActive?: boolean;
+  hideLabelOnMobile?: boolean;
 }
 
-export const NavigationItem = ({ link, label, icon, isActive = false }: NavigationItemProps) => (
+export const NavigationItem = ({ link, label, icon, isActive = false, hideLabelOnMobile = false }: NavigationItemProps) => (
   <Link
     to={link}
     className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
@@ -18,7 +19,7 @@ export const NavigationItem = ({ link, label, icon, isActive = false }: Navigati
   >
     <span className="flex items-center gap-1.5">
       {icon}
-      {label}
+      <span className={hideLabelOnMobile ? 'hidden sm:inline' : ''}>{label}</span>
     </span>
   </Link>
 );

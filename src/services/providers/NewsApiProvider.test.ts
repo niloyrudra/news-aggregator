@@ -118,6 +118,84 @@ describe('NewsApiProvider — search()', () => {
     expect(seen.url).toContain('category=technology');
   });
 
+  it('never emits a parameter-less /everything URL — falls back to a default q', async () => {
+    // Regression test for the initial page-load bug: a bare
+    // `/everything?pageSize=50` returns HTTP 400 `parametersMissing` from
+    // NewsAPI. The provider must always include at least one of
+    // q | qInTitle | sources | domains on /everything.
+    const seen: { url?: string } = {};
+    server.use(
+      http.get('https://newsapi.org/v2/everything', ({ request }) => {
+        seen.url = request.url;
+        return HttpResponse.json(newsApiArticlesResponse);
+      }),
+    );
+
+    await provider.search({});
+
+    expect(seen.url).toBeDefined();
+    expect(seen.url).toContain('/everything');
+    expect(seen.url).toContain('q=news');
+    expect(seen.url).toContain('pageSize=50');
+  });
+
+  // NOTE: Disabled — the old test assumed params.sources could be used as NewsAPI source IDs.
+  // In reality, params.sources contains PROVIDER IDs (e.g., "newsapi", "guardian"), not
+  // NewsAPI source IDs (e.g., "bbc-news", "cnn"). The aggregator filters providers before
+  // calling them, so we don't pass provider IDs to NewsAPI's `sources` param.
+  // it('does not add the fallback q when a single source satisfies the required-param rule', async () => {
+  //   const seen: { url?: string } = {};
+  //   server.use(
+  //     http.get('https://newsapi.org/v2/everything', ({ request }) => {
+  //       seen.url = request.url;
+  //       return HttpResponse.json(newsApiArticlesResponse);
+  //     }),
+  //   );
+  //
+  //   await provider.search({ sources: ['cnn'] });
+  //
+  //   expect(seen.url).toBeDefined();
+  //   expect(seen.url).toContain('sources=cnn');
+  //   // `sources` already satisfies NewsAPI's required-param rule — no fallback q.
+  //   expect(seen.url).not.toContain('q=');
+  // });
+
+  it('always includes fallback q=news when no keyword is provided (params.sources is provider IDs, not NewsAPI sources)', async () => {
+    const seen: { url?: string } = {};
+    server.use(
+      http.get('https://newsapi.org/v2/everything', ({ request }) => {
+        seen.url = request.url;
+        return HttpResponse.json(newsApiArticlesResponse);
+      }),
+    );
+
+    // Simulate the real app: sources=['newsapi'] means user selected NewsAPI provider
+    await provider.search({ sources: ['newsapi'] });
+
+    expect(seen.url).toBeDefined();
+    expect(seen.url).toContain('/everything');
+    // Provider IDs are NOT passed to NewsAPI's sources param
+    expect(seen.url).not.toContain('sources=');
+    // Fallback q is always used when no keyword
+    expect(seen.url).toContain('q=news');
+  });
+
+  it('uses the trimmed keyword as q when present', async () => {
+    const seen: { url?: string } = {};
+    server.use(
+      http.get('https://newsapi.org/v2/everything', ({ request }) => {
+        seen.url = request.url;
+        return HttpResponse.json(newsApiArticlesResponse);
+      }),
+    );
+
+    await provider.search({ keyword: '  climate  ' });
+
+    expect(seen.url).toBeDefined();
+    expect(seen.url).toContain('q=climate');
+    expect(seen.url).not.toContain('q=news');
+  });
+
   it('rejects with a typed error when the API key is missing — no network call', async () => {
     vi.stubEnv('VITE_NEWSAPI_KEY', '');
     const spy = vi.spyOn(globalThis, 'fetch');

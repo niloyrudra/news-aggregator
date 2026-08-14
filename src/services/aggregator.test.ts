@@ -73,6 +73,7 @@ describe('AggregatorService — happy path', () => {
       guardian: 'ok',
       nyt: 'ok',
     });
+    expect(result.sourceErrors).toEqual({});
   });
 
   it('preserves the order of providers in the output (stable for UI keys)', async () => {
@@ -133,6 +134,10 @@ describe('AggregatorService — partial failure (the allSettled contract)', () =
       guardian: 'error',
       nyt: 'ok',
     });
+    // The failed provider's reason is captured so the UI can surface it.
+    expect(result.sourceErrors).toEqual({
+      guardian: 'CORS preflight failed',
+    });
   });
 
   it('does not throw when the failing provider is in the middle of the array', async () => {
@@ -154,6 +159,9 @@ describe('AggregatorService — partial failure (the allSettled contract)', () =
       fails: 'error',
       'ok-2': 'ok',
     });
+    expect(result.sourceErrors).toEqual({
+      fails: 'Network down',
+    });
   });
 });
 
@@ -161,7 +169,7 @@ describe('AggregatorService — degenerate inputs', () => {
   it('returns an empty result when given no providers — does not throw', async () => {
     const agg = new AggregatorService();
     const result = await agg.search([], { keyword: 'x' });
-    expect(result).toEqual({ articles: [], sourceStatus: {} });
+    expect(result).toEqual({ articles: [], sourceStatus: {}, sourceErrors: {} });
   });
 
   it('reports every source as error when all providers reject', async () => {
@@ -177,5 +185,6 @@ describe('AggregatorService — degenerate inputs', () => {
 
     expect(result.articles).toEqual([]);
     expect(result.sourceStatus).toEqual({ a: 'error', b: 'error' });
+    expect(result.sourceErrors).toEqual({ a: 'boom', b: 'boom' });
   });
 });

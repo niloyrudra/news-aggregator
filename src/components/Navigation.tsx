@@ -1,36 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useSearchFilters } from '@/hooks/useSearchFilters';
-import { usePreferencesStore } from '@/features/preferences/store';
+// import { useCombinedFilters } from '@/hooks/useCombinedFilters';
 import { NavigationItem } from './ui/NavigationItem';
-import { HomeIcon, RssIcon } from 'lucide-react';
+import { HomeIcon, RssIcon, SettingsIcon } from 'lucide-react';
 
 export function Navigation() {
   const location = useLocation();
-  const { keyword, category, dateFrom, dateTo, sources, authors, resetAll } = useSearchFilters();
-  const { preferredSources, preferredCategories, preferredAuthors } = usePreferencesStore();
-  
-  // Compute effective filters (URL params + preferences as defaults)
-  const effectiveCategory = category || preferredCategories[0];
-  const effectiveSources = (sources && sources.length > 0) ? sources : preferredSources;
-  const effectiveAuthors = (authors && authors.length > 0) ? authors : preferredAuthors;
-  
-  const hasActiveFilters = Boolean(
-    keyword || 
-    effectiveCategory || 
-    dateFrom || 
-    dateTo || 
-    (effectiveSources && effectiveSources.length > 0) || 
-    (effectiveAuthors && effectiveAuthors.length > 0)
-  );
-
-  const activeFilterCount = [
-    keyword && 1,
-    effectiveCategory && 1,
-    dateFrom && 1,
-    dateTo && 1,
-    effectiveSources?.length || 0,
-    effectiveAuthors?.length || 0,
-  ].filter(Boolean).length;
+  // const { hasActiveFilters, resetAll } = useCombinedFilters();
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-30">
@@ -45,24 +20,28 @@ export function Navigation() {
           <div className="flex items-center space-x-4">
             <NavigationItem
               link="/"
-              label={hasActiveFilters ? `Feed (${activeFilterCount})` : 'Feed'}
+              label="Feed"
               icon={<RssIcon className="h-4 w-4" />}
               isActive={location.pathname === '/'}
+              hideLabelOnMobile
             />
             <NavigationItem
               link="/preferences"
               label="Preferences"
+              icon={<SettingsIcon className="h-4 w-4" />}
               isActive={location.pathname === '/preferences'}
+              hideLabelOnMobile
             />
-            {hasActiveFilters && (
+            {/* {hasActiveFilters && (
               <button
                 type="button"
                 onClick={resetAll}
-                className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-yellow-100 border border-yellow-300 rounded-lg hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition-colors"
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-yellow-100 border border-yellow-300 rounded-lg hover:bg-yellow-200 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2 transition-colors flex items-center gap-1.5"
               >
-                Clear Filters
+                <RotateCcwIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Clear Filters</span>
               </button>
-            )}
+            )} */}
           </div>
         </div>
       </div>
