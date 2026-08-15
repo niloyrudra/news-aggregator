@@ -135,7 +135,11 @@ This project calls all three APIs **directly from the browser** per the brief's 
 - NewsAPI free tier only works from `localhost` (CORS restriction)
 - Guardian & NYT CORS support is unreliable from deployed URLs
 
-**This is a documented, deliberate trade-off** — not an oversight. A backend proxy would resolve key exposure and CORS reliability, and would be the correct production architecture. The provider-isolation pattern ensures a source being unreachable degrades gracefully rather than breaking the app.
+### This is a documented, deliberate trade-off
+
+This is not an oversight. A backend proxy would resolve key exposure and CORS reliability, and would be the correct production architecture. The provider-isolation pattern ensures a source being unreachable degrades gracefully rather than breaking the app.
+
+NewsAPI also has some query combinations it can't serve (date-only, date+category; see `ARCHITECTURE.md`); the app detects these and shows NewsAPI as unavailable for that search rather than sending a request known to fail.
 
 See `ARCHITECTURE.md` for full reasoning.
 

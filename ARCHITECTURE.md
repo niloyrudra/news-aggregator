@@ -17,6 +17,12 @@ API keys are embedded in the built JavaScript bundle and can be read by anyone u
 - NewsAPI’s free tier only allows CORS from `localhost`; it will hard-fail if it's accessed from a deployed URL rather than a local dev server.
 - The Guardian's API has no documented CORS support; calls may fail from the browser regardless of origin, including localhost.
 
+### NewsAPI Query Coverage Limitations
+
+NewsAPI's `/everything` endpoint has no category parameter and requires at least one of `q`, `sources`, or `domains` to be present. Its `/top-headlines` endpoint supports category but has no date-range parameter. As a result, NewsAPI cannot serve: a date-range-only query, a date-range + category query, or (pending verification) a keyword + date + category query.
+
+Rather than send a request guaranteed to fail, or silently drop part of the filter and return results that don't match what the user selected, `NewsApiProvider` detects these combinations in `buildUrl()` and short-circuits with a typed error before any network call. The existing per-source failure isolation (`Promise.allSettled` in `AggregatorService`) surfaces this as a source-unavailable notice — Guardian and NYT, which have no such restriction, continue to serve these filter combinations normally.
+
 ## Provider Isolation
 
 The application uses an `AggregatorService.search()` that uses `Promise.allSettled` across all three providers (never `Promise.all`). A rejected provider must not reject the whole aggregation. Return a per-source status alongside merged results to surface failed sources as dismissible notices rather than full-page errors.
