@@ -23,6 +23,29 @@ const SOURCES = [
   { id: 'nyt', name: 'The New York Times' },
 ];
 
+function FilterHeader({ activeFilterCount, onClose }: { activeFilterCount: number; onClose: () => void }) {
+  return (
+    <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+        Filters
+        {activeFilterCount > 0 && (
+          <span className="text-sm font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            ({activeFilterCount})
+          </span>
+        )}
+      </h2>
+      <button
+        type="button"
+        onClick={onClose}
+        className="lg:hidden p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
+        aria-label="Close filters"
+      >
+        <XIcon className="h-5 w-5" />
+      </button>
+    </div>
+  );
+}
+
 export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
   const {
     dateFrom,
@@ -35,10 +58,21 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
     setCategory,
     setSources,
     setAuthors,
-    resetAll,
+    resetFilters,
   } = useSearchFilters();
 
   const { preferredSources, preferredCategories, preferredAuthors } = usePreferencesStore();
+
+  // Active filter count: only sidebar filters (dateFrom, dateTo, category, sources, authors)
+  const activeFilterCount = [
+    dateFrom ? 1 : 0,
+    dateTo ? 1 : 0,
+    category ? 1 : 0,
+    sources?.length || 0,
+    authors?.length || 0,
+  ].reduce((a, b) => a + b, 0);
+
+  const hasActiveFilters = activeFilterCount > 0;
 
   const handleDateFromChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setDateFrom(e.target.value || null);
@@ -66,10 +100,6 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
     setAuthors(newAuthors.length > 0 ? newAuthors : null);
   };
 
-  const hasActiveFilters = Boolean(
-    dateFrom || dateTo || category || (sources && sources.length > 0) || (authors && authors.length > 0)
-  );
-
   return (
     <>
       <div
@@ -85,17 +115,7 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
         aria-label="Filters"
       >
         <div className="flex flex-col h-full">
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 lg:hidden">
-            <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
-              aria-label="Close filters"
-            >
-              <XIcon className="h-5 w-5" />
-            </button>
-          </div>
+          <FilterHeader activeFilterCount={activeFilterCount} onClose={onClose} />
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
             <div>
@@ -207,17 +227,17 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
                 </p>
               )}
             </div>
-          </div>
 
-          <div className="p-4 border-t border-gray-200">
             {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={resetAll}
-                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-              >
-                Clear All Filters
-              </button>
+              <div className="pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                >
+                  Clear Filters
+                </button>
+              </div>
             )}
           </div>
         </div>

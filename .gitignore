@@ -31,8 +31,9 @@ dist-ssr
 SPEC.md
 agent-skills/
 
-e2e
+/* E2E Testing */
 playwright-report
+test-results
 
 .gitignore
 .dockerignore
