@@ -84,6 +84,9 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     return { 'X-Api-Key': this.apiKey ?? '' };
   }
 
+  // Known limitation: NewsAPI /everything requires a keyword or source
+  // (q|qInTitle|sources|domains) — a bare date-range query can't be expressed,
+  // so it short-circuits with a typed error instead of firing a guaranteed-failing request.
   private buildUrl({ params }: { params: SearchParams; }): { url: string; error?: string } {
     if (!this.apiKey) {
       return { url: '', error: 'VITE_NEWSAPI_KEY is not set' };
@@ -103,6 +106,19 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
     const url = new URL(`${NEWSAPI_BASE}/${endpoint}`);
 
     if (useTopHeadlines) {
+      // /top-headlines has NO date-range parameter (from/to). Asking it to
+      // filter by date would silently drop the date and return unfiltered
+      // recent headlines — effectively the default feed. Short-circuit with a
+      // typed error so the user's date filter is never silently ignored.
+      // Category + date is a documented NewsAPI gap (same class as the
+      // /everything q-required rule above).
+      if (params.dateFrom || params.dateTo) {
+        return {
+          url: '',
+          error: 'NewsAPI /top-headlines does not support date-range filtering; category + date cannot be combined',
+        };
+      }
+
       // /top-headlines: supports category, country, but NOT keyword (on free tier)
       // We send category but skip keyword to avoid API error
       if (params.category) {
@@ -116,16 +132,27 @@ export class NewsApiProvider extends BaseHttpProvider implements NewsProvider {
       // /everything: supports keyword + date range, NO category.
       // NewsAPI REQUIRES at least one of q | qInTitle | sources | domains —
       // a bare `/everything?pageSize=50` returns HTTP 400 `parametersMissing`
-      // ("the scope of your search is too broad"). Guard that here so a first
-      // page load with no filters never fires a guaranteed-failing request.
+      // ("the scope of your search is too broad").
       const keyword = params.keyword?.trim();
+      const hasSources = Boolean(params.sources && params.sources.length > 0);
+
+      // Date-range-only (or no-filter) queries have no keyword and no source
+      // to satisfy the mandatory-scope rule. Fabricating `q=news` returned
+      // misleadingly narrow results instead of a true date-range filter —
+      // short-circuit with a typed error rather than fire a request that
+      // would either 400 or silently mis-filter.
+      if (!keyword && !hasSources) {
+        return {
+          url: '',
+          error: 'NewsAPI /everything requires a keyword or source; date-range-only filtering is not supported',
+        };
+      }
 
       if (keyword) {
         url.searchParams.set('q', keyword);
       } else {
-        // No keyword provided → fall back to a broad-but-valid
-        // default keyword so the initial (empty) load returns data instead of 400.
-        // NewsAPI has no concept of "all news" — q is mandatory on /everything.
+        // No keyword provided → fall back to a broad-but-valid default
+        // keyword so the request satisfies NewsAPI's q|sources|domains rule.
         url.searchParams.set('q', 'news');
       }
       if (params.dateFrom) url.searchParams.set('from', params.dateFrom);

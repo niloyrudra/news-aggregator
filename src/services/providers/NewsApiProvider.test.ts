@@ -118,25 +118,78 @@ describe('NewsApiProvider — search()', () => {
     expect(seen.url).toContain('category=technology');
   });
 
-  it('never emits a parameter-less /everything URL — falls back to a default q', async () => {
-    // Regression test for the initial page-load bug: a bare
-    // `/everything?pageSize=50` returns HTTP 400 `parametersMissing` from
-    // NewsAPI. The provider must always include at least one of
-    // q | qInTitle | sources | domains on /everything.
+  it('short-circuits with a typed error when a date range is combined with a category — no network call', async () => {
+    // Regression test for the date + category bug: /top-headlines has NO
+    // date-range parameter, so asking it to combine category + date would
+    // silently drop the date and return unfiltered recent headlines — the
+    // "default feed" symptom. The provider must reject with a typed error and
+    // never touch the network, so Guardian/NYT results display cleanly.
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(provider.search({ category: 'Technology', dateFrom: '2026-08-01', dateTo: '2026-08-15' }))
+      .rejects.toThrow(/top-headlines does not support date-range/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('still allows a category without a date range through to /top-headlines', async () => {
     const seen: { url?: string } = {};
     server.use(
-      http.get('https://newsapi.org/v2/everything', ({ request }) => {
+      http.get('https://newsapi.org/v2/top-headlines', ({ request }) => {
         seen.url = request.url;
         return HttpResponse.json(newsApiArticlesResponse);
       }),
     );
 
-    await provider.search({});
+    await provider.search({ category: 'Sports' });
 
     expect(seen.url).toBeDefined();
-    expect(seen.url).toContain('/everything');
-    expect(seen.url).toContain('q=news');
-    expect(seen.url).toContain('pageSize=50');
+    expect(seen.url).toContain('/top-headlines');
+    expect(seen.url).toContain('category=sports');
+  });
+
+  it('short-circuits with a typed error when keyword + date + category are all set — no network call', async () => {
+    // Regression test for diagnostic case (c): keyword + dateFrom/dateTo +
+    // category all set. NewsAPI has no single endpoint that supports all three:
+    //   - /everything supports keyword + date, but NO category
+    //   - /top-headlines supports category, but NO keyword (free tier) and NO date
+    // The provider must reject with a typed error rather than silently drop any
+    // of the user's filters. Confirmed via diagnostic: buildUrl() returns
+    // { url: '', error: 'NewsAPI /top-headlines does not support date-range...' }
+    // — no URL is built, so category is never silently dropped.
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(provider.search({
+      keyword: 'climate',
+      dateFrom: '2026-08-01',
+      dateTo: '2026-08-15',
+      category: 'Technology',
+    })).rejects.toThrow(/top-headlines does not support date-range/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('short-circuits with a typed error for a query with no keyword and no sources — no network call', async () => {
+    // Regression test for the date-range-only bug: NewsAPI /everything
+    // requires at least one of q | qInTitle | sources | domains on /everything.
+    // A bare date range can't satisfy that, so instead of fabricating `q=news`
+    // (which mis-filters the result set to only "news"-keyword articles) or
+    // firing a request that would 400, the provider must reject with a typed
+    // error and never touch the network.
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(provider.search({ dateFrom: '2026-08-01', dateTo: '2026-08-15' }))
+      .rejects.toThrow(/NewsAPI \/everything requires a keyword or source/);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('short-circuits with a typed error for a completely empty query — no network call', async () => {
+    // Initial page load with no URL params and no preferences: no keyword,
+    // no sources — NewsAPI can't express "all news". Reject with a typed
+    // error instead of fabricating `q=news` (which silently narrows results
+    // to only articles matching the literal word "news").
+    const spy = vi.spyOn(globalThis, 'fetch');
+
+    await expect(provider.search({})).rejects.toThrow(/NewsAPI \/everything requires a keyword or source/);
+    expect(spy).not.toHaveBeenCalled();
   });
 
   // NOTE: Disabled — the old test assumed params.sources could be used as NewsAPI source IDs.
