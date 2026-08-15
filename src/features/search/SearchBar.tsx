@@ -21,13 +21,17 @@ export function SearchBar() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2 w-full">
+    <form onSubmit={handleSubmit} className="flex items-center gap-2 w-full" role="search">
       <div className="relative flex-1">
         <SearchIcon
           className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5"
           aria-hidden="true"
         />
+        <label htmlFor="search-input" className="sr-only">
+          Search news
+        </label>
         <input
+          id="search-input"
           type="text"
           value={inputValue}
           onChange={handleChange}

@@ -1,12 +1,21 @@
-import { XCircleIcon } from "lucide-react";
+import { XCircleIcon } from 'lucide-react';
 
-export const CloseButton = ({onClick}: { onClick: () => void }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        className="ml-4 flex-shrink-0 text-yellow-400 hover:text-yellow-600 focus:outline-none"
-        aria-label="Dismiss notice"
-    >
-        <XCircleIcon className="h-5 w-5" />
+interface CloseButtonProps {
+  onClick: () => void;
+  label?: string;
+  className?: string;
+  iconClassName?: string;
+}
+
+export function CloseButton({
+  onClick,
+  label = 'Dismiss notice',
+  className = 'ml-4 flex-shrink-0 text-yellow-400 hover:text-yellow-600 focus:outline-none',
+  iconClassName = 'h-5 w-5',
+}: CloseButtonProps) {
+  return (
+    <button type="button" onClick={onClick} className={className} aria-label={label}>
+      <XCircleIcon className={iconClassName} />
     </button>
-);
+  );
+}

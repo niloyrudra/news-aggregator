@@ -1,9 +1,9 @@
 // import { useState, useEffect } from 'react';
 import { usePreferencesStore } from './store';
+import { SettingsCard } from '@/components/ui/SettingsCard';
 
 export function CategorySelector() {
   const { preferredCategories, setPreferredCategories } = usePreferencesStore();
-  // const [selectedCategories, setSelectedCategories] = useState<string[]>(preferredCategories);
 
   // Available categories (these would come from an API or be hardcoded)
   const categories = [
@@ -16,24 +16,20 @@ export function CategorySelector() {
     'Entertainment'
   ];
 
-  // useEffect(() => {
-  //   setSelectedCategories(preferredCategories);
-  // }, [preferredCategories]);
-
   const handleToggleCategory = (category: string) => {
     const newSelected = preferredCategories.includes(category)
       ? preferredCategories.filter(c => c !== category)
       : [...preferredCategories, category];
 
-    // setSelectedCategories(newSelected);
     setPreferredCategories(newSelected);
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">News Categories</h3>
-      <p className="text-gray-600 mb-4">Select which news categories to include in your feed</p>
-
+    <SettingsCard
+      title="News Categories"
+      description="Select which news categories to include in your feed"
+      className="mt-6"
+    >
       <div className="flex flex-wrap gap-2">
         {categories.map((category) => (
           <button
@@ -50,6 +46,6 @@ export function CategorySelector() {
           </button>
         ))}
       </div>
-    </div>
+    </SettingsCard>
   );
 }

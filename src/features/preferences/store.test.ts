@@ -1,7 +1,6 @@
 /**
- * Tests for the preferences store — the highest-value reliability surface
- * (per agent-skills/03 § 3): "if stored data doesn't match, fall back to
- * defaults."
+ * Tests for the preferences store — the highest-value reliability surface:
+ * "if stored data doesn't match, fall back to defaults."
  *
  * The store reads from localStorage via Zustand `persist`. We stub it with
  * an in-memory mock so the tests run in jsdom without polluting real storage.

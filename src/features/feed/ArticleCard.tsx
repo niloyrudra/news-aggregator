@@ -1,4 +1,5 @@
 import type { Article } from '@/contracts/Article';
+import { Badge } from '@/components/ui/Badge';
 
 interface ArticleCardProps {
   article: Article;
@@ -29,18 +30,12 @@ export function ArticleCard({ article }: ArticleCardProps) {
         </p>
         <div className="flex flex-wrap gap-2 justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {article.source}
-            </span>
-            {article.category && (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                {article.category}
-              </span>
-            )}
+            <Badge>{article.source}</Badge>
+            {article.category && <Badge variant="gray">{article.category}</Badge>}
           </div>
-          <div className="text-xs text-gray-500">
+          <time dateTime={article.publishedAt} className="text-xs text-gray-500">
             {new Date(article.publishedAt).toLocaleDateString()}
-          </div>
+          </time>
         </div>
         <a
           href={article.url}

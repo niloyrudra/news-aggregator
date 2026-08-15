@@ -7,7 +7,7 @@ import {
 } from '@/lib/urlSearchFilters';
 
 /**
- * URL-backed search/filter state — see agent-skills/03-state-management.md § 1.
+ * URL-backed search/filter state.
  *
  * The URL is the source of truth (so results are shareable, bookmarkable, and
  * survive a refresh). Components never call `useSearchParams` directly; they

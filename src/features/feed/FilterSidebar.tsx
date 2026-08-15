@@ -1,6 +1,7 @@
 import { useSearchFilters } from '@/hooks/useSearchFilters';
 import { usePreferencesStore } from '@/features/preferences/store';
 import { CalendarIcon, TagIcon, NewspaperIcon, UserIcon, XIcon } from 'lucide-react';
+import { FilterSection } from '@/components/ui/FilterSection';
 
 interface FilterSidebarProps {
   isOpen: boolean;
@@ -118,11 +119,7 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
           <FilterHeader activeFilterCount={activeFilterCount} onClose={onClose} />
 
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                <CalendarIcon className="h-4 w-4 text-gray-500" />
-                Date Range
-              </h3>
+            <FilterSection title="Date Range" icon={<CalendarIcon className="h-4 w-4 text-gray-500" />}>
               <div className="space-y-3">
                 <div>
                   <label htmlFor="date-from" className="block text-xs font-medium text-gray-700 mb-1">
@@ -149,13 +146,9 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
                   />
                 </div>
               </div>
-            </div>
+            </FilterSection>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                <TagIcon className="h-4 w-4 text-gray-500" />
-                Category
-              </h3>
+            <FilterSection title="Category" icon={<TagIcon className="h-4 w-4 text-gray-500" />}>
               <select
                 value={category || ''}
                 onChange={handleCategoryChange}
@@ -173,13 +166,9 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
                   Preferred: {preferredCategories.join(', ')}
                 </p>
               )}
-            </div>
+            </FilterSection>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                <NewspaperIcon className="h-4 w-4 text-gray-500" />
-                Sources
-              </h3>
+            <FilterSection title="Sources" icon={<NewspaperIcon className="h-4 w-4 text-gray-500" />}>
               <div className="space-y-2">
                 {SOURCES.map((source) => (
                   <label key={source.id} className="flex items-center cursor-pointer">
@@ -197,13 +186,9 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
                   </label>
                 ))}
               </div>
-            </div>
+            </FilterSection>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-gray-500" />
-                Authors
-              </h3>
+            <FilterSection title="Authors" icon={<UserIcon className="h-4 w-4 text-gray-500" />}>
               <div className="space-y-2 max-h-40 overflow-y-auto">
                 {authors?.map((author) => (
                   <label key={author} className="flex items-center cursor-pointer">
@@ -226,7 +211,7 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
                   Preferred: {preferredAuthors.join(', ')}
                 </p>
               )}
-            </div>
+            </FilterSection>
 
             {hasActiveFilters && (
               <div className="pt-4 border-t border-gray-200">

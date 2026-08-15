@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 /**
- * Debounce a value — see agent-skills/03 § 1: keyword input must be debounced
- * ~300ms before it hits the URL/providers, to protect NewsAPI's daily quota.
+ * Debounce a value.
+ *
+ * Keyword input must be debounced ~300ms before it hits the URL/providers,
+ * to protect NewsAPI's daily quota.
  *
  * Returns the most recent value after `delayMs` of no changes.
  */

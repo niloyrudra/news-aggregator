@@ -1,10 +1,9 @@
 /**
  * Tests for AggregatorService — verifies the allSettled contract
- * (agent-skills/02 rule 5, agent-skills/04 rule 1) and the
- * { articles, sourceStatus } return shape (agent-skills/04 rule 2).
+ * and the `{ articles, sourceStatus }` return shape.
  *
  * These tests use lightweight stub providers rather than the real adapters.
- * The aggregators's job is fan-out/merge — wiring a real NewsApi/Guardian/NYT
+ * The aggregator's job is fan-out/merge — wiring a real NewsApi/Guardian/NYT
  * here would re-test things the per-provider suites already cover.
  */
 

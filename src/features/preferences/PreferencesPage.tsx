@@ -1,6 +1,7 @@
 import { usePreferencesStore } from './store';
 import { SourceSelector } from './SourceSelector';
 import { CategorySelector } from './CategorySelector';
+import { SettingsCard } from '@/components/ui/SettingsCard';
 
 export function PreferencesPage() {
   const { resetPreferences } = usePreferencesStore();
@@ -22,9 +23,11 @@ export function PreferencesPage() {
 
       <CategorySelector />
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Reset Preferences</h3>
-        <p className="text-gray-600 mb-4">Restore all preferences to their default values</p>
+      <SettingsCard
+        title="Reset Preferences"
+        description="Restore all preferences to their default values"
+        className="mt-6"
+      >
         <button
           type="button"
           onClick={handleReset}
@@ -32,7 +35,7 @@ export function PreferencesPage() {
         >
           Reset to Defaults
         </button>
-      </div>
+      </SettingsCard>
     </div>
   );
 }

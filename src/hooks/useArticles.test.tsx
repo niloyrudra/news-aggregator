@@ -1,6 +1,5 @@
 /**
- * Tests for useArticles — the two highest-value behaviors per
- * agent-skills/03 § 1 + § 2:
+ * Tests for useArticles — the two highest-value behaviors:
  *   1. Keyword input is debounced ~300ms before triggering a fetch.
  *   2. A stale-key refetch cancels the prior request (forwarded signal).
  */

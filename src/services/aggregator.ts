@@ -5,8 +5,7 @@ import type { SearchParams } from '@/contracts/SearchParams';
 /**
  * Per-source status surfaced alongside merged results. The UI uses this to
  * render a small "Guardian unavailable" notice instead of blanking the whole
- * feed when one upstream fails — see agent-skills/04-security-and-reliability.md
- * rule 2.
+ * feed when one upstream fails.
  *
  * Indexed by `provider.id` so the UI can look up status without holding a
  * reference to the provider object.
@@ -27,18 +26,17 @@ export interface AggregatorResult {
 /**
  * Fan-out aggregator across N news providers.
  *
- * Per agent-skills/02 rule 5 + agent-skills/04 rule 1: **always `Promise.allSettled`**,
- * never `Promise.all`. A rejected provider must not reject the whole call —
- * the user gets partial results plus per-source status so the UI can degrade
- * gracefully.
+ * **Always `Promise.allSettled`, never `Promise.all`.** A rejected provider
+ * must not reject the whole call — the user gets partial results plus
+ * per-source status so the UI can degrade gracefully.
  *
- * Per agent-skills/02 rule 4: this class depends on the `NewsProvider` interface,
- * not concrete classes. Wire it once with `[new NewsApiProvider(), new GuardianProvider(),
- * new NytProvider()]` and it never needs to know which class is which.
+ * Depends on the `NewsProvider` interface, not concrete classes. Wire it once
+ * with `[new NewsApiProvider(), new GuardianProvider(), new NytProvider()]`
+ * and it never needs to know which class is which.
  *
- * Per agent-skills/04 rule 4: forward the `AbortSignal` to every provider so
- * the caller (TanStack Query, etc.) can cancel a stale request when the user
- * types again or changes a filter.
+ * Forwards the `AbortSignal` to every provider so the caller (TanStack Query,
+ * etc.) can cancel a stale request when the user types again or changes a
+ * filter.
  */
 export class AggregatorService {
   /**

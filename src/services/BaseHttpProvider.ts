@@ -1,5 +1,5 @@
 /**
- * Shared HTTP concerns for all news providers — per agent-skills/02 rule 3.
+ * Shared HTTP concerns for all news providers.
  *
  * Subclasses pass a URL + init and get a typed JSON response back. The base
  * class owns:
@@ -42,7 +42,7 @@ class HttpError extends Error {
 export interface BaseHttpProviderOptions {
   /** Per-attempt timeout in ms. */
   timeoutMs?: number;
-  /** Max attempts including the first. Spec: max 2. Clamped to >= 1. */
+  /** Max attempts including the first. Clamped to >= 1. */
   maxAttempts?: number;
   /** Initial backoff in ms; doubled each attempt. */
   initialBackoffMs?: number;
@@ -66,7 +66,7 @@ export class BaseHttpProvider {
   /**
    * Fetch JSON with timeout + retry. Throws `HttpError` on failure.
    * Accepts an external `signal` so callers (e.g. TanStack Query) can cancel
-   * stale requests — see 04-security-and-reliability.md rule 4.
+   * stale requests.
    */
   protected async getJson<T>(
     url: string,

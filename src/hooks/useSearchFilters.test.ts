@@ -1,7 +1,6 @@
 /**
- * Tests for useSearchFilters — verifies the URL is the source of truth
- * (agent-skills/03 § 1) and the typed getters/setters round-trip
- * through `window.location.search`.
+ * Tests for useSearchFilters — verifies the URL is the source of truth,
+ * and the typed getters/setters round-trip through `window.location.search`.
  */
 
 import { act, renderHook } from '@testing-library/react';

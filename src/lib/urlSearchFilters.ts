@@ -1,12 +1,9 @@
 /**
- * URL-backed state for search filters — see agent-skills/03 § 1.
+ * URL-backed state for search filters.
  *
- * We don't depend on react-router-dom (the project has no router). This is a
- * thin wrapper over `window.location.search` + `history.pushState` that honors
- * the architectural rule that filters live in the URL — shareable,
- * bookmarkable, refresh-surviving — without bringing in a router just for
- * one hook. If react-router is added later, only `useSearchFilters.ts` needs
- * to swap its import.
+ * This is a thin wrapper over `window.location.search` + `history.pushState`
+ * that keeps filters in the URL — shareable, bookmarkable, refresh-surviving —
+ * without coupling the hook to the router.
  *
  * Array values are serialized as repeated keys (`?sources=a&sources=b`),
  * which is the standard URL convention and survives a round-trip through

@@ -6,12 +6,12 @@ import { AggregatorService, type AggregatorResult } from '@/services/aggregator'
 import { useDebounce } from '@/hooks/useDebounce';
 
 /**
- * Article feed query — see agent-skills/03 § 2.
+ * Article feed query.
  *
  * - Query key: `['articles', filters]` so the same filter set is deduped
  *   across components and the cache survives navigation.
- * - Keyword is debounced ~300ms before it enters the key — see § 1, the
- *   single biggest protection against burning NewsAPI's 100 req/day quota.
+ * - Keyword is debounced ~300ms before it enters the key — the single
+ *   biggest protection against burning NewsAPI's 100 req/day quota.
  * - Stale request cancellation: TanStack Query v5 passes an `AbortSignal`
  *   into `queryFn` whenever a refetch races a stale key. We forward that
  *   signal to `AggregatorService.search`, which in turn forwards to every

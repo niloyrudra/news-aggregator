@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Article } from '@/contracts/Article';
 import { ArticleCard } from './ArticleCard';
+import { StateMessage } from '@/components/ui/StateMessage';
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 
 interface ArticleListProps {
@@ -37,29 +38,29 @@ export function ArticleList({ articles, isLoading, hasError }: ArticleListProps)
 
   if (hasError) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-        <h3 className="text-lg font-medium text-red-800 mb-2">Error loading articles</h3>
-        <p className="text-red-600">Please try again later.</p>
-      </div>
+      <StateMessage title="Error loading articles" tone="error">
+        Please try again later.
+      </StateMessage>
     );
   }
 
   if (articles.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center">
-        <h3 className="text-lg font-medium text-gray-900 mb-2">No articles found</h3>
-        <p className="text-gray-600">Try adjusting your search or filters.</p>
-      </div>
+      <StateMessage title="No articles found">
+        Try adjusting your search or filters.
+      </StateMessage>
     );
   }
 
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedArticles.map((article) => (
-          <ArticleCard key={article.id} article={article} />
+          <li key={article.id}>
+            <ArticleCard article={article} />
+          </li>
         ))}
-      </div>
+      </ul>
 
       {totalPages > 1 && (
         <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">

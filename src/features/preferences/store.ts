@@ -3,18 +3,16 @@ import { persist, createJSONStorage, type StateStorage } from 'zustand/middlewar
 import { z } from 'zod';
 
 /**
- * User preferences store — see agent-skills/03 § 3.
+ * User preferences store.
  *
  * Source/category/author preferences feed the feed page as *defaults*; the
  * URL params (from `useSearchFilters`) win when present. Persisted to
  * localStorage via Zustand's `persist` middleware.
  *
- * Loaded data is validated with a Zod schema on hydrate (see
- * `agent-skills/03-state-management.md` § 3, the "shape change survives"
- * rule): if the stored JSON doesn't match — older version, manual edit,
- * a different app sharing the key — we throw it away and fall back to
- * defaults. Cheaper and safer than a migration on day one of any
- * deployed users.
+ * Loaded data is validated with a Zod schema on hydrate: if the stored JSON
+ * doesn't match — older version, manual edit, a different app sharing the
+ * key — we throw it away and fall back to defaults. Cheaper and safer than a
+ * migration on day one of any deployed users.
  */
 
 export interface PreferencesState {
@@ -65,7 +63,7 @@ const STORAGE_KEY = 'innoscripta.preferences.v1';
  * Coerce the persisted shape into the full `PreferencesState` (so direct
  * field access in components gets a non-undefined array even if the user
  * has never interacted with a preference). Returns DEFAULTS when input fails
- * validation — see `agent-skills/03` § 3 rule.
+ * validation.
  */
 function parsePersisted(raw: unknown): Pick<
   PreferencesState,

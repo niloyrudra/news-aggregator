@@ -13,9 +13,9 @@ import { mapCategoryForProvider } from '@/lib/categoryMapping';
  * Auth is via the `api-key` query parameter, not a header.
  *
  * Reliability note: Guardian's CORS support from the browser is undocumented.
- * Per agent-skills/04, this provider may be unreachable from the deployed
- * origin — the AggregatorService's `Promise.allSettled` strategy is what
- * makes that tolerable, not anything in this file.
+ * This provider may be unreachable from the deployed origin — the
+ * AggregatorService's `Promise.allSettled` strategy is what makes that
+ * tolerable, not anything in this file.
  */
 const GUARDIAN_BASE = 'https://content.guardianapis.com';
 
