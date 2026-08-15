@@ -6,6 +6,7 @@ import { FilterSection } from '@/components/ui/FilterSection';
 interface FilterSidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  availableAuthors: string[];
 }
 
 const CATEGORIES = [
@@ -47,7 +48,7 @@ function FilterHeader({ activeFilterCount, onClose }: { activeFilterCount: numbe
   );
 }
 
-export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
+export function FilterSidebar({ isOpen, onClose, availableAuthors }: FilterSidebarProps) {
   const {
     dateFrom,
     dateTo,
@@ -190,19 +191,19 @@ export function FilterSidebar({ isOpen, onClose }: FilterSidebarProps) {
 
             <FilterSection title="Authors" icon={<UserIcon className="h-4 w-4 text-gray-500" />}>
               <div className="space-y-2 max-h-40 overflow-y-auto">
-                {authors?.map((author) => (
+                {availableAuthors.map((author) => (
                   <label key={author} className="flex items-center cursor-pointer">
                     <input
                       type="checkbox"
                       id={`author-${author.replace(/\s+/g, '-').toLowerCase()}`}
-                      checked={true}
+                      checked={authors?.includes(author) || false}
                       onChange={() => handleAuthorToggle(author)}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                     <span className="ml-3 text-sm text-gray-700">{author}</span>
                   </label>
                 ))}
-                {(!authors || authors.length === 0) && (
+                {(availableAuthors.length === 0) && (
                   <p className="text-sm text-gray-500">No authors in current results</p>
                 )}
               </div>

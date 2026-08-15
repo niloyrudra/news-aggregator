@@ -8,6 +8,7 @@ import { FilterSidebar } from './FilterSidebar';
 import { NewsApiProvider, GuardianProvider, NytProvider } from '@/services/providers';
 import { Notice } from '@/components/ui/Notice';
 import { FilterIcon } from 'lucide-react';
+import type { Article } from '@/contracts/Article';
 
 export function FeedPage() {
   const { asEffectiveSearchParams, effectiveSources } = useCombinedFilters();
@@ -69,10 +70,21 @@ export function FeedPage() {
     });
   }, [data?.articles, effectiveParams]);
 
+  // Extract unique authors from filtered articles for the filter sidebar
+  const availableAuthors = useMemo(() => {
+    const authors = new Set<string>();
+    filteredArticles.forEach((article: Article) => {
+      if (article.author) {
+        authors.add(article.author);
+      }
+    });
+    return Array.from(authors).sort();
+  }, [filteredArticles]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="lg:flex">
-        <FilterSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <FilterSidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} availableAuthors={availableAuthors} />
         
         <div className="flex-1 lg:pl-0">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
